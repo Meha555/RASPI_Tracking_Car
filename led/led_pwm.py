@@ -18,5 +18,5 @@ except KeyboardInterrupt:
     pass
 
 p.stop()
-print('pin clean')
+print('Pin clean')
 GPIO.cleanup()

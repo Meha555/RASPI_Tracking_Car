@@ -1,4 +1,4 @@
-TARGET = led_gpio led_pwm
+TARGET = keyboard motor_bcm
 SRC = /home/pi/Desktop/respberry_-tracking_-car
 LIB = wiringPi
 CFLAG = -L$(SRC) -l$(LIB)
