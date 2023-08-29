@@ -10,7 +10,6 @@
 #define PWM_MAX 60    // PWM占空比
 #define PWM_DELTA 10  // PWM每次增量
 
-// int g_current_speed = 0;
 int curr_speed[2] = {0};
 
 enum Direct {
@@ -19,12 +18,8 @@ enum Direct {
     FORWARD,
     BACKWARD,
     STOP
-} g_gear = STOP;  // 当前档位
-// enum Gear {
-//     AHEAD,
-//     GOBACK,
-//     STOP
-// }
+} g_gear = STOP;   // 当前档位
+int CAR_HEAD = 1;  // 车头方向
 struct Motor {
     int m1;  // 正转引脚
     int m2;  // 反转引脚
@@ -63,57 +58,64 @@ void cleanup_pin() {
         pinMode(motor[i].m2, INPUT);
     }
 }
-/**
- * @description: 电机转向
- * @param {enum Direct} 方向 - 左转or右转
- * @return {void}
- */
-void drive_turn(enum Direct direct) {
-    int pin_slow = (direct == LEFT) ? motor[LEFT].m1 : motor[RIGHT].m1;
-    int pin_fast = (direct == LEFT) ? motor[RIGHT].m1 : motor[LEFT].m1;
-    for (; curr_speed[~direct] < PWM_MAX; curr_speed[~direct] += (PWM_DELTA << 1)) {
-        softPwmWrite(pin_fast, curr_speed[~direct]);
-        printf("drive_turn fast: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
-        delay(200);
-    }
-    for (; curr_speed[direct] > 0; curr_speed[direct] -= (PWM_DELTA << 1)) {
-        softPwmWrite(pin_slow, curr_speed[direct]);
-        printf("drive_turn slow: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
-        delay(200);
-    }
-}
-/**
- * @description: PWM加速 - 每次g_current_speed
- * @param {enum Direct} 方向 - 前进or后退
- * @return {void}
- */
-void drive_speed_up() {
-    int pin_left = (g_gear == FORWARD) ? motor[LEFT].m1 : motor[LEFT].m2;
-    int pin_right = (g_gear == FORWARD) ? motor[RIGHT].m1 : motor[RIGHT].m2;
+void bothside_ahead_speedup() {
     for (; curr_speed[LEFT] < PWM_MAX && curr_speed[RIGHT] < PWM_MAX; curr_speed[LEFT] += PWM_DELTA, curr_speed[RIGHT] += PWM_DELTA) {
-        softPwmWrite(pin_left, curr_speed[LEFT]);
-        softPwmWrite(pin_right, curr_speed[RIGHT]);
+        softPwmWrite(motor[LEFT].m1, curr_speed[LEFT]);
+        softPwmWrite(motor[RIGHT].m1, curr_speed[RIGHT]);
         delay(500);
     }
 }
-/**
- * @description: PWM减速 - 每次g_current_speed
- * @param {enum Direct} 方向 - 前进or后退
- * @return {void}
- */
-void drive_speed_down() {
-    int pin_left = (g_gear == FORWARD) ? motor[LEFT].m1 : motor[LEFT].m2;
-    int pin_right = (g_gear == FORWARD) ? motor[RIGHT].m1 : motor[RIGHT].m2;
+void bothside_ahead_slowdown() {
     for (; curr_speed[LEFT] > 0 && curr_speed[RIGHT] > 0; curr_speed[LEFT] -= PWM_DELTA, curr_speed[RIGHT] -= PWM_DELTA) {
-        softPwmWrite(pin_left, curr_speed[LEFT]);
-        softPwmWrite(pin_right, curr_speed[RIGHT]);
+        softPwmWrite(motor[LEFT].m1, curr_speed[LEFT]);
+        softPwmWrite(motor[RIGHT].m1, curr_speed[RIGHT]);
+        delay(500);
+    }
+    softPwmWrite(motor[LEFT].m1, 0);
+    softPwmWrite(motor[RIGHT].m1, 0);
+}
+void bothside_goback_speedup() {
+    for (; curr_speed[LEFT] < PWM_MAX && curr_speed[RIGHT] < PWM_MAX; curr_speed[LEFT] += PWM_DELTA, curr_speed[RIGHT] += PWM_DELTA) {
+        softPwmWrite(motor[LEFT].m2, curr_speed[LEFT]);
+        softPwmWrite(motor[RIGHT].m2, curr_speed[RIGHT]);
         delay(500);
     }
 }
-/**
- * @description: 电机刹车
- * @return {void}
- */
+void bothside_goback_slowdown() {
+    for (; curr_speed[LEFT] > 0 && curr_speed[RIGHT] > 0; curr_speed[LEFT] -= PWM_DELTA, curr_speed[RIGHT] -= PWM_DELTA) {
+        softPwmWrite(motor[LEFT].m2, curr_speed[LEFT]);
+        softPwmWrite(motor[RIGHT].m2, curr_speed[RIGHT]);
+        delay(500);
+    }
+    softPwmWrite(motor[LEFT].m2, 0);
+    softPwmWrite(motor[RIGHT].m2, 0);
+}
+void onside_ahead_speedup(enum Direct direct) {
+    for (; curr_speed[direct] < PWM_MAX; curr_speed[direct] += PWM_DELTA) {
+        softPwmWrite(motor[direct].m1, curr_speed[direct]);
+        delay(500);
+    }
+}
+void onside_goback_speedup(enum Direct direct) {
+    for (; curr_speed[direct] < PWM_MAX; curr_speed[direct] += PWM_DELTA) {
+        softPwmWrite(motor[direct].m2, curr_speed[direct]);
+        delay(500);
+    }
+}
+void onside_ahead_slowdown(enum Direct direct) {
+    for (; curr_speed[direct] > 0; curr_speed[direct] -= PWM_DELTA) {
+        softPwmWrite(motor[direct].m1, curr_speed[direct]);
+        delay(500);
+    }
+    softPwmWrite(motor[direct].m1, 0);
+}
+void onside_goback_slowdown(enum Direct direct) {
+    for (; curr_speed[direct] > 0; curr_speed[direct] -= PWM_DELTA) {
+        softPwmWrite(motor[direct].m2, curr_speed[direct]);
+        delay(500);
+    }
+    softPwmWrite(motor[direct].m2, 0);
+}
 void drive_break() {
     for (int i = 0; i < 2; i++) {
         softPwmWrite(motor[i].m1, 0);
@@ -136,31 +138,55 @@ int main() {
         switch (ch) {
             case 'W': {  // 前进
                 printf("Forward~\n");
+                CAR_HEAD = 1;
+                printf("Current head: %d\n", CAR_HEAD);
                 printf("=>Before Gear: %d\n", g_gear);
                 if (g_gear == BACKWARD)
-                    drive_speed_down();
+                    bothside_goback_slowdown();
+                else if (g_gear == LEFT)
+                    onside_ahead_speedup(LEFT);
+                else if (g_gear == RIGHT)
+                    onside_ahead_speedup(RIGHT);
                 printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
                 g_gear = FORWARD;
-                drive_speed_up();
+                bothside_ahead_speedup();
                 printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
                 break;
             }
             case 'A': {  // 左转
                 printf("Turn Left~\n");
+                printf("Current head: %d\n", CAR_HEAD);
                 printf("=>Before Gear: %d\n", g_gear);
                 printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
-                drive_turn(LEFT);
+                if (CAR_HEAD == 1) {
+                    if (g_gear != LEFT) {
+                        onside_ahead_slowdown(LEFT);
+                    }
+                    onside_ahead_speedup(RIGHT);
+                } else {
+                    if (g_gear != LEFT) {
+                        onside_goback_slowdown(LEFT);
+                    }
+                    onside_goback_speedup(RIGHT);
+                }
+                g_gear = LEFT;
                 printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
                 break;
             }
             case 'S': {  // 后退
                 printf("Backward~\n");
+                CAR_HEAD = 0;
+                printf("Current head: %d\n", CAR_HEAD);
                 printf("=>Before Gear: %d\n", g_gear);
                 if (g_gear == FORWARD)
-                    drive_speed_down();
+                    bothside_ahead_slowdown();
+                else if (g_gear == LEFT)
+                    onside_goback_speedup(LEFT);
+                else if (g_gear == RIGHT)
+                    onside_goback_speedup(RIGHT);
                 printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
                 g_gear = BACKWARD;
-                drive_speed_up();
+                bothside_goback_speedup();
                 printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
                 break;
             }
@@ -174,9 +200,21 @@ int main() {
             }
             case 'D': {  // 右转
                 printf("Turn Right~\n");
+                printf("Current head: %d\n", CAR_HEAD);
                 printf("=>Before Gear: %d\n", g_gear);
                 printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
-                drive_turn(RIGHT);
+                if (CAR_HEAD == 1) {
+                    if (g_gear != RIGHT) {
+                        onside_ahead_slowdown(RIGHT);
+                    }
+                    onside_ahead_speedup(LEFT);
+                } else {
+                    if (g_gear != RIGHT) {
+                        onside_goback_slowdown(RIGHT);
+                    }
+                    onside_goback_speedup(LEFT);
+                }
+                g_gear = RIGHT;
                 printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
                 break;
             }
