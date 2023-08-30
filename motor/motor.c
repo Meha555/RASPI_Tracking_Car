@@ -1,3 +1,4 @@
+#include "motor.h"
 #include <signal.h>
 #include <softPwm.h>
 #include <stdio.h>
@@ -52,7 +53,7 @@ void inital_drive() {
     }
     signal(SIGINT, command_stop);  // 注册我们的CTRL+C停止点击的信号处理程序
 }
-void cleanup_pin() {
+static void cleanup_pin() {
     for (int i = 0; i < 2; i++) {
         pinMode(motor[i].m1, INPUT);
         pinMode(motor[i].m2, INPUT);
@@ -123,7 +124,7 @@ void drive_break() {
         curr_speed[i] = 0;
     }
 }
-int main() {
+void drive(double (*fp1)(void), void (*fp2)(int, int, int, int, int)) {
     inital_drive();
     int opt;
     printf("Ready, waitting for command...\n");
@@ -133,7 +134,22 @@ int main() {
     tms_new = tms_old;                    // 复制终端属性
     tms_new.c_lflag &= ~(ICANON | ECHO);  // 禁用标准输入的行缓冲和回显
     tcsetattr(0, TCSANOW, &tms_new);      // 设置新的终端属性
+    int dist = 0;
     while (1) {
+        dist = (*fp1)();
+        (*fp2)(0, dist / 100, dist % 100 / 10, dist % 10, 0);
+        printf("完成测距\n");
+        printf("Dectecting dist: %d CM\n", dist);
+        if (dist <= 5) {
+            printf("Emergency Break~\n");
+            if (dist >= 400)
+                printf("Lose precision!\n");
+            else
+                printf("Dectecting dist: %d CM\n", dist);
+            g_gear = STOP;
+            drive_break();
+            delay(500);
+        }
         unsigned char ch = getchar();  // 读取用户输入的字符
         switch (ch) {
             case 'W': {  // 前进
@@ -225,5 +241,4 @@ int main() {
     }
     tcsetattr(0, TCSANOW, &tms_old);  // 恢复旧的终端属性
     cleanup_pin();
-    return 0;
 }

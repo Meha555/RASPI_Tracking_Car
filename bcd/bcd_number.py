@@ -1,7 +1,12 @@
 import RPi.GPIO as GPIO
 import time
-
+import datetime 
+import pytz
+  
 GPIO.setmode(GPIO.BCM)
+
+DIO_PIN = 22
+CLK_PIN = 27
 
 class tm1637:
     __segdata = (63,6,91,79,102,109,125,7,127,111) #0-9
@@ -10,56 +15,67 @@ class tm1637:
         self.__DIO = DIO
         GPIO.setup(self.__DIO,GPIO.OUT)
         GPIO.setup(self.__CLK,GPIO.OUT)
+
     def __start(self):
-        GPIO.output(self.__CLK, GPIO.HIGH)# 时钟引脚提到高电平,接受开始信号
+        GPIO.output(self.__CLK, GPIO.HIGH)# CLK引脚提到高电平,接受开始信号
         time.sleep(0.000140)
-        #开始信号:self._ DI0引脚由高电平变为低电平
+        #开始信号:self._DIO引脚由高电平变为低电平
         GPIO.output(self.__DIO, GPIO.HIGH)
         time.sleep(0.000140)
         GPIO.output(self.__DIO, GPIO.LOW)
         time.sleep(0.000140)
-        GPIO.output(self.__CLK,GPIO.LOW) #时钟引脚降到低电平,准备后续的数据/命令接收
+        GPIO.output(self.__CLK,GPIO.LOW) #CLK引脚降到低电平,准备后续的数据/命令接收
         time.sleep(0.000140)
+
     def __stop(self):
-        GPIO.output(self.__CLK,GPIO.LOW) # 时钟引脚降到低电平,保证self.__DI0变为低电平时不会触发开始信号
+        GPIO.output(self.__CLK,GPIO.LOW) # CLK引脚降到低电平,保证self.__DIO变为低电平时不会触发开始信号
         time.sleep(0.000140)
-        GPIO. output(self.__DIO,GPIO.LOW)
+        GPIO. output(self.__DIO,GPIO.LOW) # 拉低DIO
         time.sleep(0.000140)
-        GPIO.output(self.__CLK,GPIO.HIGH) # 时钟引脚提到高电平,接受结束信号
+        GPIO.output(self.__CLK,GPIO.HIGH) # CLK引脚提到高电平,接受结束信号
         time.sleep(0.000140)
-        #结束信号:self.__DI0引脚由低电平变为高电平
+        #结束信号:self.__DIO引脚由低电平变为高电平
         GPIO.output(self.__DIO, GPIO.HIGH)
         time.sleep(0.000140)
+
     def __write_bit(self, bit:int):
-        GPIO.output(self.__CLK,GPIO.LOW) # 时钟引脚在低电平时,才是输入
+        GPIO.output(self.__CLK,GPIO.LOW) # 保险：确保输入时，CLK引脚在低电平时
         time.sleep(0.000140)
         GPIO.output(self.__DIO,bit)
         time.sleep(0.000140)
-        GPIO.output(self.__CLK, GPIO.HIGH) # 时钟引脚在在电平时,发送数据
+        GPIO.output(self.__CLK, GPIO.HIGH) # CLK引脚拉高，结束当前bit的传输
         time.sleep(0.000140)
+
     def __write_byte(self,byte:int):
         for x in range(0,8):
             self.__write_bit((byte>>x)&1)
-    # 处理第九个时钟的ack信号
+        # 处理第九个CLK的ACK信号
         GPIO.output(self.__CLK,GPIO.LOW)
         time.sleep(0.000140)
         GPIO.output(self.__DIO,GPIO.HIGH)
         time.sleep(0.000140)
         GPIO.output(self.__CLK,GPIO.HIGH)
         time.sleep(0.000140)
+        """
+        临时设置数据线为输入模式，从而检测数据线的电平
+        等待数据线变为低电平，表示芯片已经接收完所有的数据，然后将数据线重新设置为输出模式。
+        """
         GPIO.setup(self.__DIO,GPIO.IN)
         while(GPIO.input(self.__DIO)==GPIO.HIGH):
             pass
         GPIO.setup(self.__DIO,GPIO.OUT)
+
     def write_command(self,cmd:int):
         self.__start()
         self.__write_byte(cmd)
         self.__stop()
+
     def write_data(self,addr:int,data:int):
         self.__start()
         self.__write_byte(addr)
         self.__write_byte(data)
         self.__stop()
+
     def set_num_display(self,n1:int,n2:int,n3:int,n4:int,dp:bool):
         self.write_command(64)# 命令：数据写入寄存器
         self.write_command(68)# 命令：固定地址设置法
@@ -71,9 +87,13 @@ class tm1637:
         self.write_command(136)#显示打开
 
 if __name__ == '__main__':
-    bcd = tm1637(27,22)
-    while True:
-        for i in range(10):
-            bcd.set_num_display(i,(i+1)%10,(i+2)%10,(i+3)%10,True)
+    bcd = tm1637(CLK_PIN,DIO_PIN)
+    timezone = pytz.timezone('Asia/Shanghai')
+    try:  
+        while True:
+            utc_time = datetime.datetime.now(pytz.utc)
+            local_time = utc_time.astimezone(timezone)
+            bcd.set_num_display(int(local_time.hour/10),int(local_time.hour%10),int(local_time.minute/10),int(local_time.minute%10),True)
             time.sleep(0.01)
-
+    except KeyboardInterrupt:  
+        GPIO.cleanup()

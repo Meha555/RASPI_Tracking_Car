@@ -6,12 +6,18 @@
 #define BEEP_PIN 0
 #define KEY_PIN 21
 
+/*
+ 检测出键闭合后执行一个延时程序，5ms～10ms（取决于机械特性）的延时，
+ 让前沿抖动消失后再一次检测键的状态，如果仍保持闭合状态电平，则确认为真正有键按下。
+ 当检测到按键释放后，也要给5ms～10ms的延时，待后沿抖动消失后才能转入该键的处理程序
+*/
+
 void catch_sigint(int sig) {
     digitalWrite(BEEP_PIN, LOW);
     signal(SIGINT, SIG_DFL);
 }
 
-int main(void) {
+void initial_buzzer() {
     if (wiringPiSetup() < 0) {
         perror("Start GPIO Failed.");
         exit(1);
@@ -20,11 +26,10 @@ int main(void) {
     pinMode(BEEP_PIN, OUTPUT);
     digitalWrite(BEEP_PIN, LOW);
     pinMode(KEY_PIN, INPUT);
-    /*
-     检测出键闭合后执行一个延时程序，5ms～10ms（取决于机械特性）的延时，
-     让前沿抖动消失后再一次检测键的状态，如果仍保持闭合状态电平，则确认为真正有键按下。
-     当检测到按键释放后，也要给5ms～10ms的延时，待后沿抖动消失后才能转入该键的处理程序
-    */
+}
+
+int main(void) {
+    initial_buzzer();
     while (1) {
         if (digitalRead(KEY_PIN) == HIGH) {      // 初次检测
             delay(20);                           // 延迟20ms防抖

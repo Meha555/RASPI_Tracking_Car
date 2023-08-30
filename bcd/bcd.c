@@ -1,20 +1,9 @@
+// #include "bcd.h"
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <wiringPi.h>
-
-#define CLK_PIN 2  // 时钟
-#define DIO_PIN 3  // 数据线
-
-#define BCD_ADDR_1 0xc0
-#define BCD_ADDR_2 0xc1
-#define BCD_ADDR_3 0xc2
-#define BCD_ADDR_4 0xc3
-
-#define CMD_WRITE 0x40
-#define CMD_FIXADDR 0x44
-#define CMD_VISIBLE 0x88
 
 /*
 > [TM1637驱动数码管_笑面浮屠的博客-CSDN博客](https://blog.csdn.net/q1241580040/article/details/45815245)
@@ -30,7 +19,35 @@
 - 手动捕获硬件自动发出的ACK信号，实现同步
 */
 
+#define CLK_PIN 2  // 时钟
+#define DIO_PIN 3  // 数据线
+
+#define BCD_ADDR_1 0xc0
+#define BCD_ADDR_2 0xc1
+#define BCD_ADDR_3 0xc2
+#define BCD_ADDR_4 0xc3
+
+#define CMD_WRITE 0x40
+#define CMD_FIXADDR 0x44
+#define CMD_VISIBLE 0x88
+
 static char seg_data[] = {0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f};  // LOW~9 + 0x80 就能显示冒号
+
+static void cleanup_pin(int sig) {
+    pinMode(DIO_PIN, INPUT);
+    pinMode(CLK_PIN, INPUT);
+    signal(SIGINT, SIG_DFL);
+}
+void tm1637_init() {
+    if (wiringPiSetup() < 0) {
+        perror("Start GPIO Failed.");
+        exit(HIGH);
+    }
+    pinMode(CLK_PIN, OUTPUT);
+    pinMode(DIO_PIN, OUTPUT);
+    signal(SIGINT, cleanup_pin);
+}
+
 // 开始一次数据传输
 void tm1637_start() {
     // 拉高CLK，准备开始制造DIO下降沿
@@ -118,34 +135,10 @@ void bcd_display(int h_shi, int h_ge, int m_shi, int m_ge, int flag) {
     write_data(BCD_ADDR_4, seg_data[m_ge]);
     write_command(CMD_VISIBLE);  // 显示开
 }
-void tm1637_init() {
-    if (wiringPiSetup() < LOW) {
-        perror("Start GPIO Failed.");
-        exit(HIGH);
-    }
-    pinMode(CLK_PIN, OUTPUT);
-    pinMode(DIO_PIN, OUTPUT);
-}
-void cleanup_pin(int sig) {
-    pinMode(DIO_PIN, INPUT);
-    pinMode(CLK_PIN, INPUT);
-    signal(SIGINT, SIG_DFL);
-}
 
 struct tm* get_time() {
     time_t timep;
     struct tm* p;
     time(&timep);
     return gmtime(&timep);
-}
-
-int main() {
-    tm1637_init();
-    signal(SIGINT, cleanup_pin);
-    while (1) {
-        struct tm* p = get_time();
-        bcd_display((8 + p->tm_hour) / 10, (8 + p->tm_hour) % 10, p->tm_min / 10, p->tm_min % 10, 1);
-        delay(1000);
-    }
-    return 0;
 }
