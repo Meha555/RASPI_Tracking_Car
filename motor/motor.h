@@ -1,8 +1,23 @@
 #ifndef MOTOR_H
 #define MOTOR_H
 
+#include <pthread.h>
+#include <semaphore.h>
+
+struct MotorParam {
+    unsigned char key_pressed;
+    int dist;
+    enum Orientation { AHEAD,
+                       TURN_LEFT,
+                       TURN_RIGHT } orient;
+};
+
+extern sem_t sem_keyboard;           // 键盘资源信号量
+extern sem_t sem_sonar;              // 声呐资源信号量
+extern pthread_mutex_t mutex_param;  // 电机参数锁
+
 extern void inital_drive();
-extern void drive(double (*fp1)(void),void (*fp2)(int,int,int,int,int));
+extern void drive(struct MotorParam* param);
 // void bothside_ahead_speedup();
 // void bothside_ahead_slowdown();
 // void bothside_goback_speedup();

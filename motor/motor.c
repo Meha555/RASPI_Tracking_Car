@@ -124,7 +124,7 @@ void drive_break() {
         curr_speed[i] = 0;
     }
 }
-void drive(double (*fp1)(void), void (*fp2)(int, int, int, int, int)) {
+void drive(struct MotorParam* param) {
     inital_drive();
     int opt;
     printf("Ready, waitting for command...\n");
@@ -135,22 +135,13 @@ void drive(double (*fp1)(void), void (*fp2)(int, int, int, int, int)) {
     tms_new.c_lflag &= ~(ICANON | ECHO);  // 禁用标准输入的行缓冲和回显
     tcsetattr(0, TCSANOW, &tms_new);      // 设置新的终端属性
     int dist = 0;
+    unsigned char ch = 'E';
     while (1) {
-        dist = (*fp1)();
-        (*fp2)(0, dist / 100, dist % 100 / 10, dist % 10, 0);
-        printf("完成测距\n");
-        printf("Dectecting dist: %d CM\n", dist);
-        if (dist <= 5) {
-            printf("Emergency Break~\n");
-            if (dist >= 400)
-                printf("Lose precision!\n");
-            else
-                printf("Dectecting dist: %d CM\n", dist);
-            g_gear = STOP;
-            drive_break();
-            delay(500);
-        }
-        unsigned char ch = getchar();  // 读取用户输入的字符
+        sem_wait(&sem_keyboard);  // 等待键盘动作
+        pthread_mutex_lock(&mutex_param);
+        ch = param->key_pressed;
+        pthread_mutex_unlock(&mutex_param);
+        printf("Get key_pressed.\n");
         switch (ch) {
             case 'W': {  // 前进
                 printf("Forward~\n");
