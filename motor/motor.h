@@ -23,6 +23,7 @@ extern pthread_mutex_t mutex_param;  // 电机参数锁
 
 extern void inital_drive();
 extern void drive(struct MotorParam* param);
+extern void command_stop(int);
 // void bothside_ahead_speedup();
 // void bothside_ahead_slowdown();
 // void bothside_goback_speedup();

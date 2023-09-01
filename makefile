@@ -4,7 +4,7 @@ CFLAGS = -w -I/usr/include/wiringPi -I/usr/include/pthread -g
 %.o: %.c  
 	$(CC) $(CFLAGS) -c $< -o $@  
   
-main: main.o bcd.o motor.o snoar.o actuator.o thread_tools.o #buzzer.o led.o  
+main: main.o bcd.o motor.o snoar.o actuator.o thread_tools.o #buzzer.o #led.o  
 	$(CC) $^ -lwiringPi -lpthread -o main  
   
 main.o: main.c  

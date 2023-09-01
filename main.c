@@ -1,114 +1,129 @@
 #include <pthread.h>
+#include <signal.h>
+#include <softPwm.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <termio.h>
+#include <unistd.h>
 #include "actuator/actuator.h"
 #include "bcd/bcd.h"
 #include "key/buzzer.h"
 #include "led/led.h"
 #include "motor/motor.h"
 #include "sonar/hc_sr04.h"
-#include "utils/thread_tools.h".
+#include "utils/thread_tools.h"
 
 #define THREAD_NUM 4
 pthread_t tid[THREAD_NUM];
-// pthread_attr_t tattr[THREAD_NUM];
-// struct sched_param schedparam[THREAD_NUM];
 
 // 全局变量的定义
 sem_t sem_keyboard;           // 键盘资源信号量
 sem_t sem_sonar;              // 声呐资源信号量
 pthread_mutex_t mutex_param;  // 电机参数锁
 
-void set_thread_attr(pthread_attr_t* tattr, int priority) {
-    printf("Setting thread attribute.\n");
-    pthread_attr_init(&tattr);
-    if (get_thread_policy(&tattr) != SCHED_RR)
-        set_thread_policy(&tattr, SCHED_RR);
-    struct sched_param schedparam;
-    schedparam.sched_priority = priority;
-    pthread_attr_setschedparam(&tattr, &schedparam);
-    get_thread_priority(&tattr);
-
-    // pthread_attr_destroy(&tattr);
+// 捕获CTRL+C
+static void catch_sigint(int sig) {
+    // 结束各个线程
+    for (int i = 0; i < THREAD_NUM; i++) {
+        pthread_cancel(tid[i]);
+    }
+    command_stop(0);   // motor
+    command_reset(0);  // actuator
+    // command_shut(0);   // buzzer
+    signal(SIGINT, SIG_DFL);
+    exit(0);  // 结束进程
 }
 
+// 超声波+舵机+数码管
 void* sonar_thread(void* args) {
     printf("In sonar_thread.\n");
-    // pthread_attr_t tattr;
-    // set_thread_attr(&tattr, 2);
-    // pthread_attr_init(&tattr);
-    // // if (get_thread_policy(&tattr) != SCHED_RR)
-    // set_thread_policy(&tattr, SCHED_RR);
-    // struct sched_param schedparam;
-    // schedparam.sched_priority = 2;
-    // pthread_attr_setschedparam(&tattr, &schedparam);
-    // get_thread_priority(&tattr);
-    struct MotorParam param = *(struct MotorParam*)args;
+    struct MotorParam* param = (struct MotorParam*)args;
     tm1637_init();
     inital_hr024();
+    initial_actuator();
     int flag = 1;
     while (1) {
-        int dist = get_distance();
-        if (dist >= 400)
-            printf("Lose precision!\n");
-        else
-            printf("Dectecting dist: %d CM\n", dist);
-        flag ^= 1;
-        bcd_display(0, dist / 100, dist % 100 / 10, dist % 10, flag);
-        pthread_mutex_lock(&mutex_param);
-        param.dist = dist;  // 写入距离到参数地址
-        pthread_mutex_unlock(&mutex_param);
-        delay(500);
+        // 左转
+        for (int i = -90; i < 90; i += 45) {
+            // printf("Actuator spin left %d degree.\n", i);
+            softPwmWrite(SERVO_PIN, get_duty_cycle(i));
+            delay(500);
+            int dist = get_distance();
+            if (dist >= 400)
+                printf("Lose precision!\n");
+            else
+                printf("Dectecting dist: %d CM\n", dist);
+            flag ^= 1;
+            bcd_display(0, dist / 100, dist % 100 / 10, dist % 10, flag);
+            pthread_mutex_lock(&mutex_param);
+            param->dist = dist;  // 写入距离到参数地址
+            pthread_mutex_unlock(&mutex_param);
+        }
+        // 右转
+        for (int i = 90; i > -90; i -= 45) {
+            // printf("Actuator spin right %d degree.\n", i);
+            softPwmWrite(SERVO_PIN, get_duty_cycle(i));
+            delay(500);
+            int dist = get_distance();
+            if (dist >= 400)
+                printf("Lose precision!\n");
+            else
+                printf("Dectecting dist: %d CM\n", dist);
+            flag ^= 1;
+            bcd_display(0, dist / 100, dist % 100 / 10, dist % 10, flag);
+            pthread_mutex_lock(&mutex_param);
+            param->dist = dist;  // 写入距离到参数地址
+            pthread_mutex_unlock(&mutex_param);
+        }
+        // int dist = get_distance();
+        // if (dist >= 400)
+        //     printf("Lose precision!\n");
+        // else
+        //     printf("Dectecting dist: %d CM\n", dist);
+        // flag ^= 1;
+        // bcd_display(0, dist / 100, dist % 100 / 10, dist % 10, flag);
+        // pthread_mutex_lock(&mutex_param);
+        // param.dist = dist;  // 写入距离到参数地址
+        // pthread_mutex_unlock(&mutex_param);
+        // delay(500);
     }
-    // pthread_attr_destroy(&tattr);
 }
 
+// 键盘动作
 void* keyboard_action_thread(void* args) {
     printf("In keyboard_action_thread.\n");
-    // pthread_attr_t tattr;
-    // set_thread_attr(&tattr, 1);
-    // pthread_attr_init(&tattr);
-    // // if (get_thread_policy(&tattr) != SCHED_RR)
-    // set_thread_policy(&tattr, SCHED_RR);
-    // struct sched_param schedparam;
-    // schedparam.sched_priority = 1;
-    // pthread_attr_setschedparam(&tattr, &schedparam);
-    // get_thread_priority(&tattr);
-    struct MotorParam param = *(struct MotorParam*)args;
+    struct MotorParam* param = (struct MotorParam*)args;
+    printf("Ready, waitting for command...\n");
+    struct termios tms_old, tms_new;  // 声明终端属性结构体
+    tcgetattr(0, &tms_old);           // 获取旧的终端属性
+    // 设置新的终端属性
+    tms_new = tms_old;                    // 复制终端属性
+    tms_new.c_lflag &= ~(ICANON | ECHO);  // 禁用标准输入的行缓冲和回显
+    tcsetattr(0, TCSANOW, &tms_new);      // 设置新的终端属性
     unsigned char ch = 'E';
     while (1) {
-        if (param.dist <= 5) {
+        if (param->dist <= 5) {
             pthread_mutex_lock(&mutex_param);
-            param.key_pressed = 'E';
+            printf("Emergency Break!\n");
+            param->key_pressed = 'E';
             pthread_mutex_unlock(&mutex_param);
         } else {
-            printf("--Before key_press--\n");
             ch = getchar();  // getchar()写锁外面，避免锁内阻塞
-            // printf("--Get KEY: %c--\n", ch);
+            pthread_mutex_lock(&mutex_param);
+            param->key_pressed = ch;
+            printf("--Submit KEY: %c\n", param->key_pressed);
+            pthread_mutex_unlock(&mutex_param);
         }
-        pthread_mutex_lock(&mutex_param);
-        param.key_pressed = ch;
-        printf("Submit key_pressed %c.\n", param.key_pressed);
-        pthread_mutex_unlock(&mutex_param);
         sem_post(&sem_keyboard);
     }
-    // pthread_attr_destroy(&tattr);
+    tcsetattr(0, TCSANOW, &tms_old);  // 恢复旧的终端属性
 }
 
+// 电机
 void* motor_thread(void* args) {
     printf("In motor_thread.\n");
-    // pthread_attr_t tattr;
-    // set_thread_attr(&tattr, 0);
-    // pthread_attr_init(&tattr);
-    // // if (get_thread_policy(&tattr) != SCHED_RR)
-    // set_thread_policy(&tattr, SCHED_RR);
-    // struct sched_param schedparam;
-    // schedparam.sched_priority = 0;
-    // pthread_attr_setschedparam(&tattr, &schedparam);
-    // get_thread_priority(&tattr);
-    struct MotorParam param = *(struct MotorParam*)args;
-    drive(&param);
-    // pthread_attr_destroy(&tattr);
+    struct MotorParam* param = (struct MotorParam*)args;
+    drive(param);
 }
 
 void* actuator_thread(void* args) {
@@ -123,9 +138,16 @@ void* actuator_thread(void* args) {
 }
 
 int main(int argc, char argv[]) {
+    printf("Initializing...\n");
+    if (wiringPiSetup() < 0) {
+        perror("Start GPIO Failed.");
+        exit(1);
+    }
+    signal(SIGINT, catch_sigint);
+
     // 初始化互斥同步
     sem_init(&sem_sonar, 0, 1);
-    sem_init(&sem_keyboard, 0, 1);
+    sem_init(&sem_keyboard, 0, 0);
     pthread_mutex_init(&mutex_param, NULL);
 
     // 初始化参数
@@ -134,25 +156,14 @@ int main(int argc, char argv[]) {
     motor_param->dist = 400;
     motor_param->orient = AHEAD;
 
-    // // 设置线程属性，将优先级设置为sonar_thread最高，keyboard_action_thread次之，motor_thread最低
-    // for (int i = 0; i < THREAD_NUM; i++) {
-    //     get_thread_policy(&tattr[i]);
-    //     get_thread_priority(&tattr[i]);
-    //     // pthread_attr_setschedpolicy(&tattr[i], SCHED_RR);
-    //     // set_thread_attr(&tattr[i], THREAD_NUM - i);
-    //     // get_thread_policy(&tattr[i]);
-    //     // get_thread_priority(&tattr[i]);
-    // }
     pthread_create(&tid[0], NULL, sonar_thread, motor_param);
-    pthread_create(&tid[1], NULL, actuator_thread, motor_param);
+    // pthread_create(&tid[1], NULL, actuator_thread, motor_param);
     pthread_create(&tid[2], NULL, keyboard_action_thread, motor_param);
     pthread_create(&tid[3], NULL, motor_thread, motor_param);
 
-    printf("==============\n");
     for (int i = 0; i < THREAD_NUM; i++) {
         pthread_join(tid[i], NULL);
     }
-
     printf("Exiting main process...\n");
 
     // 销毁互斥同步

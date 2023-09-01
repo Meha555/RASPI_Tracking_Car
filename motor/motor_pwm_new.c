@@ -47,8 +47,8 @@ void inital_drive() {
     for (int i = 0; i < 2; i++) {
         pinMode(motor[i].m1, OUTPUT);
         pinMode(motor[i].m2, OUTPUT);
-        softPwmCreate(motor[i].m1, 0, PWM_MAX);  // 创建一个软件控制的 PWM 管脚【将m1设置为PWM控制】
-        softPwmCreate(motor[i].m2, 0, PWM_MAX);  // 创建一个软件控制的 PWM 管脚【将m2设置为PWM控制】
+        softPwmCreate(motor[i].m1, 0, 100);  // 创建一个软件控制的 PWM 管脚【将m1设置为PWM控制】
+        softPwmCreate(motor[i].m2, 0, 100);  // 创建一个软件控制的 PWM 管脚【将m2设置为PWM控制】
     }
     signal(SIGINT, command_stop);  // 注册我们的CTRL+C停止点击的信号处理程序
 }

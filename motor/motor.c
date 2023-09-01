@@ -4,11 +4,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <termio.h>
-#include <unistd.h>
 #include <wiringPi.h>
 
-#define PWM_MAX 60    // PWM占空比
+#define PWM_MAX 30    // PWM占空比
 #define PWM_DELTA 10  // PWM每次增量
 
 int curr_speed[2] = {0};
@@ -34,22 +32,16 @@ void command_stop(int sig) {
         pinMode(motor[i].m1, INPUT);
         pinMode(motor[i].m2, INPUT);
     }
-    signal(SIGINT, SIG_DFL);  // 重新注册回默认信号处理程序
-    printf("Terminate.");
+    // signal(SIGINT, SIG_DFL);  // 重新注册回默认信号处理程序
 }
 void inital_drive() {
-    printf("Initializing...\n");
-    if (wiringPiSetup() < 0) {
-        perror("Start GPIO Failed.");
-        exit(1);
-    }
     for (int i = 0; i < 2; i++) {
         pinMode(motor[i].m1, OUTPUT);
         pinMode(motor[i].m2, OUTPUT);
-        softPwmCreate(motor[i].m1, 0, PWM_MAX);  // 创建一个软件控制的 PWM 管脚【将m1设置为PWM控制】
-        softPwmCreate(motor[i].m2, 0, PWM_MAX);  // 创建一个软件控制的 PWM 管脚【将m2设置为PWM控制】
+        softPwmCreate(motor[i].m1, 0, 100);  // 创建一个软件控制的 PWM 管脚【将m1设置为PWM控制】
+        softPwmCreate(motor[i].m2, 0, 100);  // 创建一个软件控制的 PWM 管脚【将m2设置为PWM控制】
     }
-    signal(SIGINT, command_stop);  // 注册我们的CTRL+C停止点击的信号处理程序
+    // signal(SIGINT, command_stop);  // 注册我们的CTRL+C停止点击的信号处理程序
 }
 static void cleanup_pin() {
     for (int i = 0; i < 2; i++) {
@@ -124,14 +116,6 @@ void drive_break() {
 }
 void drive(struct MotorParam* param) {
     inital_drive();
-    int opt;
-    printf("Ready, waitting for command...\n");
-    struct termios tms_old, tms_new;  // 声明终端属性结构体
-    tcgetattr(0, &tms_old);           // 获取旧的终端属性
-    // 设置新的终端属性
-    tms_new = tms_old;                    // 复制终端属性
-    tms_new.c_lflag &= ~(ICANON | ECHO);  // 禁用标准输入的行缓冲和回显
-    tcsetattr(0, TCSANOW, &tms_new);      // 设置新的终端属性
     int dist = 0;
     unsigned char ch = 'E';
     while (1) {
@@ -140,6 +124,7 @@ void drive(struct MotorParam* param) {
         ch = param->key_pressed;
         printf("--Get KEY: %c--\n", ch);
         printf("--Get DIST: %d--\n", param->dist);
+        printf("--Get ORIENT: %d--\n", param->orient);
         pthread_mutex_unlock(&mutex_param);
         switch (ch) {
             case 'W': {  // 前进
@@ -229,6 +214,5 @@ void drive(struct MotorParam* param) {
             }
         }
     }
-    tcsetattr(0, TCSANOW, &tms_old);  // 恢复旧的终端属性
     cleanup_pin();
 }

@@ -5,5 +5,7 @@
 
 extern void initial_actuator();
 extern void control_spin();
+extern int get_duty_cycle(int);
+extern void command_reset(int);
 
 #endif  // ACTUATOR_H

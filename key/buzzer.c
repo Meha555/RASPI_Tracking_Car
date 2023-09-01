@@ -10,9 +10,9 @@
  当检测到按键释放后，也要给5ms～10ms的延时，待后沿抖动消失后才能转入该键的处理程序
 */
 
-void catch_sigint(int sig) {
+void command_shut(int sig) {
     digitalWrite(BEEP_PIN, LOW);
-    signal(SIGINT, SIG_DFL);
+    // signal(SIGINT, SIG_DFL);
 }
 
 void initial_buzzer() {
@@ -20,7 +20,7 @@ void initial_buzzer() {
         perror("Start GPIO Failed.");
         exit(1);
     }
-    signal(SIGINT, catch_sigint);
+    // signal(SIGINT, command_shut);
     pinMode(BEEP_PIN, OUTPUT);
     digitalWrite(BEEP_PIN, LOW);
     pinMode(KEY_PIN, INPUT);

@@ -14,19 +14,15 @@ int get_duty_cycle(int angle) {
 void command_reset(int sig) {
     printf("Actuator reset to 0 degree.\n");
     softPwmWrite(SERVO_PIN, get_duty_cycle(0));  // 回正（0度）
-    delay(500);                                  // 回正需要时间
+    delay(1000);                                 // 回正需要时间
     pinMode(SERVO_PIN, INPUT);
-    signal(SIGINT, SIG_DFL);
+    // signal(SIGINT, SIG_DFL);
 }
 
 void initial_actuator() {
-    if (wiringPiSetup() < 0) {
-        perror("Start GPIO Failed.");
-        exit(1);
-    }
     pinMode(SERVO_PIN, INPUT);
-    softPwmCreate(SERVO_PIN, 0, 200);  // 创建softPwm对象
-    signal(SIGINT, command_reset);
+    softPwmCreate(SERVO_PIN, 0, 100);  // 创建softPwm对象
+    // signal(SIGINT, command_reset);
 }
 
 void control_spin() {

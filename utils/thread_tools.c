@@ -36,3 +36,16 @@ void set_thread_policy(pthread_attr_t* attr, int policy) {
     assert(rs == 0);
     get_thread_policy(attr);
 }
+
+void set_thread_attr(pthread_attr_t* tattr, int priority) {
+    printf("Setting thread attribute.\n");
+    pthread_attr_init(&tattr);
+    if (get_thread_policy(&tattr) != SCHED_RR)
+        set_thread_policy(&tattr, SCHED_RR);
+    struct sched_param schedparam;
+    schedparam.sched_priority = priority;
+    pthread_attr_setschedparam(&tattr, &schedparam);
+    get_thread_priority(&tattr);
+
+    // pthread_attr_destroy(&tattr);
+}

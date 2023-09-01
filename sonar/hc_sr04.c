@@ -6,10 +6,6 @@
 #include "hc_sr04.h"
 
 void inital_hr024() {
-    if (wiringPiSetup() < 0) {
-        perror("Start GPIO Failed.");
-        exit(1);
-    }
     pinMode(ECHO_PIN, INPUT);
     pinMode(TRIG_PIN, OUTPUT);
     digitalWrite(TRIG_PIN, LOW);

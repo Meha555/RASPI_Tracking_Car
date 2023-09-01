@@ -33,13 +33,9 @@ static char seg_data[] = {0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 
 static void cleanup_pin(int sig) {
     pinMode(DIO_PIN, INPUT);
     pinMode(CLK_PIN, INPUT);
-    signal(SIGINT, SIG_DFL);
+    // signal(SIGINT, SIG_DFL);
 }
 void tm1637_init() {
-    if (wiringPiSetup() < 0) {
-        perror("Start GPIO Failed.");
-        exit(1);
-    }
     pinMode(CLK_PIN, OUTPUT);
     pinMode(DIO_PIN, OUTPUT);
     // signal(SIGINT, cleanup_pin);
