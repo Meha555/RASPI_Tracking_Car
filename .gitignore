@@ -1,2 +1,13 @@
-*.o
+# Shell
 *.sh
+
+# C/CPP
+*.o
+
+# Python
+*.pyc
+
+# Other
+*.exe
+*.obj
+*.out
