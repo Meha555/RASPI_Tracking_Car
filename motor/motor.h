@@ -12,6 +12,11 @@ struct MotorParam {
                        TURN_RIGHT } orient;
 };
 
+extern struct Motor {
+    int m1;  // 正转引脚
+    int m2;  // 反转引脚
+} motor[2];
+
 extern sem_t sem_keyboard;           // 键盘资源信号量
 extern sem_t sem_sonar;              // 声呐资源信号量
 extern pthread_mutex_t mutex_param;  // 电机参数锁

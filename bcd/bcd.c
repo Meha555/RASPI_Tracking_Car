@@ -1,4 +1,4 @@
-// #include "bcd.h"
+#include "bcd.h"
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,9 +19,6 @@
 - 手动捕获硬件自动发出的ACK信号，实现同步
 */
 
-#define CLK_PIN 2  // 时钟
-#define DIO_PIN 3  // 数据线
-
 #define BCD_ADDR_1 0xc0
 #define BCD_ADDR_2 0xc1
 #define BCD_ADDR_3 0xc2
@@ -41,11 +38,11 @@ static void cleanup_pin(int sig) {
 void tm1637_init() {
     if (wiringPiSetup() < 0) {
         perror("Start GPIO Failed.");
-        exit(HIGH);
+        exit(1);
     }
     pinMode(CLK_PIN, OUTPUT);
     pinMode(DIO_PIN, OUTPUT);
-    signal(SIGINT, cleanup_pin);
+    // signal(SIGINT, cleanup_pin);
 }
 
 // 开始一次数据传输

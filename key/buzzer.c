@@ -1,10 +1,8 @@
+#include "buzzer.h"
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <wiringPi.h>
-
-#define BEEP_PIN 0
-#define KEY_PIN 21
 
 /*
  检测出键闭合后执行一个延时程序，5ms～10ms（取决于机械特性）的延时，

@@ -3,9 +3,7 @@
 int get_thread_policy(pthread_attr_t* attr) {
     int policy;
     int rs = pthread_attr_getschedpolicy(&attr, &policy);
-    // assert(rs == SCHED_FIFO);
-    // assert(rs == SCHED_RR);
-    assert(rs == SCHED_OTHER);
+    assert(rs == 0);
     switch (policy) {
         case SCHED_FIFO:
             printf("policy = SCHED_FIFO\n");

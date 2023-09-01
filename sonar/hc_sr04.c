@@ -3,9 +3,7 @@
 #include <string.h>
 #include <time.h>
 #include <wiringPi.h>
-
-#define ECHO_PIN 4
-#define TRIG_PIN 5
+#include "hc_sr04.h"
 
 void inital_hr024() {
     if (wiringPiSetup() < 0) {

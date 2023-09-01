@@ -21,12 +21,10 @@ enum Direct {
     STOP
 } g_gear = STOP;   // 当前档位
 int CAR_HEAD = 1;  // 车头方向
-struct Motor {
-    int m1;  // 正转引脚
-    int m2;  // 反转引脚
-} motor[2] = {
-    {26, 27},
-    {29, 28},
+
+struct Motor motor[2] = {
+    {.m1 = 26, .m2 = 27},
+    {.m1 = 29, .m2 = 28},
 };
 
 void command_stop(int sig) {
@@ -140,8 +138,9 @@ void drive(struct MotorParam* param) {
         sem_wait(&sem_keyboard);  // 等待键盘动作
         pthread_mutex_lock(&mutex_param);
         ch = param->key_pressed;
+        printf("--Get KEY: %c--\n", ch);
+        printf("--Get DIST: %d--\n", param->dist);
         pthread_mutex_unlock(&mutex_param);
-        printf("Get key_pressed.\n");
         switch (ch) {
             case 'W': {  // 前进
                 printf("Forward~\n");
