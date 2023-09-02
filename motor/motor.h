@@ -4,6 +4,14 @@
 #include <pthread.h>
 #include <semaphore.h>
 
+enum Direct {
+    LEFT,
+    RIGHT,
+    FORWARD,
+    BACKWARD,
+    STOP
+};
+
 struct MotorParam {
     unsigned char key_pressed;
     int dist;
@@ -24,14 +32,18 @@ extern pthread_mutex_t mutex_param;  // 电机参数锁
 extern void inital_drive();
 extern void drive(struct MotorParam* param);
 extern void command_stop(int);
-// void bothside_ahead_speedup();
-// void bothside_ahead_slowdown();
-// void bothside_goback_speedup();
-// void bothside_goback_slowdown();
-// void onside_ahead_speedup(enum Direct direct);
-// void onside_goback_speedup(enum Direct direct);
-// void onside_ahead_slowdown(enum Direct direct);
-// void onside_goback_slowdown(enum Direct direct);
-// void drive_break();
+
+extern void bothside_ahead_speedup();
+extern void bothside_ahead_slowdown();
+extern void bothside_goback_speedup();
+extern void bothside_goback_slowdown();
+extern void onside_ahead_speedup(enum Direct direct);
+extern void onside_goback_speedup(enum Direct direct);
+extern void onside_ahead_slowdown(enum Direct direct);
+extern void onside_goback_slowdown(enum Direct direct);
+extern void drive_break();
+
+extern int g_gear;    // 当前档位(这里貌似不能写enum Direct枚举，会在motor.c中认不出g_gear是枚举类型)
+extern int CAR_HEAD;  // 车头方向
 
 #endif  // MOTOR_H

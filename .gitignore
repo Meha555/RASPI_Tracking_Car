@@ -3,6 +3,7 @@
 
 # C/CPP
 *.o
+*.h.gch
 
 # Python
 *.pyc

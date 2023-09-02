@@ -6,19 +6,12 @@
 #include <string.h>
 #include <wiringPi.h>
 
-#define PWM_MAX 30    // PWM占空比
+#define PWM_MAX 40    // PWM占空比
 #define PWM_DELTA 10  // PWM每次增量
 
 int curr_speed[2] = {0};
-
-enum Direct {
-    RIGHT,
-    LEFT,
-    FORWARD,
-    BACKWARD,
-    STOP
-} g_gear = STOP;   // 当前档位
-int CAR_HEAD = 1;  // 车头方向
+g_gear = STOP;  // 当前档位
+CAR_HEAD = 1;   // 车头方向
 
 struct Motor motor[2] = {
     {.m1 = 26, .m2 = 27},
@@ -53,14 +46,14 @@ void bothside_ahead_speedup() {
     for (; curr_speed[LEFT] < PWM_MAX && curr_speed[RIGHT] < PWM_MAX; curr_speed[LEFT] += PWM_DELTA, curr_speed[RIGHT] += PWM_DELTA) {
         softPwmWrite(motor[LEFT].m1, curr_speed[LEFT]);
         softPwmWrite(motor[RIGHT].m1, curr_speed[RIGHT]);
-        delay(200);
+        delay(50);
     }
 }
 void bothside_ahead_slowdown() {
     for (; curr_speed[LEFT] > 0 && curr_speed[RIGHT] > 0; curr_speed[LEFT] -= PWM_DELTA, curr_speed[RIGHT] -= PWM_DELTA) {
         softPwmWrite(motor[LEFT].m1, curr_speed[LEFT]);
         softPwmWrite(motor[RIGHT].m1, curr_speed[RIGHT]);
-        delay(200);
+        delay(50);
     }
     softPwmWrite(motor[LEFT].m1, 0);
     softPwmWrite(motor[RIGHT].m1, 0);
@@ -69,14 +62,14 @@ void bothside_goback_speedup() {
     for (; curr_speed[LEFT] < PWM_MAX && curr_speed[RIGHT] < PWM_MAX; curr_speed[LEFT] += PWM_DELTA, curr_speed[RIGHT] += PWM_DELTA) {
         softPwmWrite(motor[LEFT].m2, curr_speed[LEFT]);
         softPwmWrite(motor[RIGHT].m2, curr_speed[RIGHT]);
-        delay(200);
+        delay(50);
     }
 }
 void bothside_goback_slowdown() {
     for (; curr_speed[LEFT] > 0 && curr_speed[RIGHT] > 0; curr_speed[LEFT] -= PWM_DELTA, curr_speed[RIGHT] -= PWM_DELTA) {
         softPwmWrite(motor[LEFT].m2, curr_speed[LEFT]);
         softPwmWrite(motor[RIGHT].m2, curr_speed[RIGHT]);
-        delay(200);
+        delay(50);
     }
     softPwmWrite(motor[LEFT].m2, 0);
     softPwmWrite(motor[RIGHT].m2, 0);
@@ -84,26 +77,26 @@ void bothside_goback_slowdown() {
 void onside_ahead_speedup(enum Direct direct) {
     for (; curr_speed[direct] < PWM_MAX; curr_speed[direct] += PWM_DELTA) {
         softPwmWrite(motor[direct].m1, curr_speed[direct]);
-        delay(200);
+        delay(25);
     }
 }
 void onside_goback_speedup(enum Direct direct) {
     for (; curr_speed[direct] < PWM_MAX; curr_speed[direct] += PWM_DELTA) {
         softPwmWrite(motor[direct].m2, curr_speed[direct]);
-        delay(200);
+        delay(25);
     }
 }
 void onside_ahead_slowdown(enum Direct direct) {
     for (; curr_speed[direct] > 0; curr_speed[direct] -= PWM_DELTA) {
         softPwmWrite(motor[direct].m1, curr_speed[direct]);
-        delay(200);
+        delay(25);
     }
     softPwmWrite(motor[direct].m1, 0);
 }
 void onside_goback_slowdown(enum Direct direct) {
     for (; curr_speed[direct] > 0; curr_speed[direct] -= PWM_DELTA) {
         softPwmWrite(motor[direct].m2, curr_speed[direct]);
-        delay(200);
+        delay(25);
     }
     softPwmWrite(motor[direct].m2, 0);
 }
@@ -122,33 +115,33 @@ void drive(struct MotorParam* param) {
         sem_wait(&sem_keyboard);  // 等待键盘动作
         pthread_mutex_lock(&mutex_param);
         ch = param->key_pressed;
-        printf("--Get KEY: %c--\n", ch);
-        printf("--Get DIST: %d--\n", param->dist);
-        printf("--Get ORIENT: %d--\n", param->orient);
+        // printf("--Get KEY: %c--\n", ch);
+        // printf("--Get DIST: %d--\n", param->dist);
+        // printf("--Get ORIENT: %d--\n", param->orient);
         pthread_mutex_unlock(&mutex_param);
         switch (ch) {
             case 'W': {  // 前进
                 printf("Forward~\n");
                 CAR_HEAD = 1;
-                printf("Current head: %d\n", CAR_HEAD);
-                printf("=>Before Gear: %d\n", g_gear);
+                // printf("Current head: %d\n", CAR_HEAD);
+                // printf("=>Before Gear: %d\n", g_gear);
                 if (g_gear == BACKWARD)
                     bothside_goback_slowdown();
                 else if (g_gear == LEFT)
                     onside_goback_slowdown(RIGHT);
                 else if (g_gear == RIGHT)
                     onside_goback_slowdown(LEFT);
-                printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
+                // printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
                 g_gear = FORWARD;
                 bothside_ahead_speedup();
-                printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
+                // printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
                 break;
             }
             case 'A': {  // 左转
                 printf("Turn Left~\n");
-                printf("Current head: %d\n", CAR_HEAD);
-                printf("=>Before Gear: %d\n", g_gear);
-                printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
+                // printf("Current head: %d\n", CAR_HEAD);
+                // printf("=>Before Gear: %d\n", g_gear);
+                // printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
                 if (CAR_HEAD == 1) {
                     if (g_gear != LEFT) {
                         onside_ahead_slowdown(LEFT);
@@ -161,39 +154,39 @@ void drive(struct MotorParam* param) {
                     onside_goback_speedup(RIGHT);
                 }
                 g_gear = LEFT;
-                printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
+                // printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
                 break;
             }
             case 'S': {  // 后退
                 printf("Backward~\n");
                 CAR_HEAD = 0;
-                printf("Current head: %d\n", CAR_HEAD);
-                printf("=>Before Gear: %d\n", g_gear);
+                // printf("Current head: %d\n", CAR_HEAD);
+                // printf("=>Before Gear: %d\n", g_gear);
                 if (g_gear == FORWARD)
                     bothside_ahead_slowdown();
                 else if (g_gear == LEFT)
                     onside_ahead_slowdown(RIGHT);
                 else if (g_gear == RIGHT)
                     onside_ahead_slowdown(LEFT);
-                printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
+                // printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
                 g_gear = BACKWARD;
                 bothside_goback_speedup();
-                printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
+                // printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
                 break;
             }
             case 'E': {  // 刹车
                 printf("Break~\n");
-                printf("=>Before Gear: %d\n", g_gear);
+                // printf("=>Before Gear: %d\n", g_gear);
                 g_gear = STOP;
                 drive_break();
-                printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
+                // printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
                 break;
             }
             case 'D': {  // 右转
                 printf("Turn Right~\n");
-                printf("Current head: %d\n", CAR_HEAD);
-                printf("=>Before Gear: %d\n", g_gear);
-                printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
+                // printf("Current head: %d\n", CAR_HEAD);
+                // printf("=>Before Gear: %d\n", g_gear);
+                // printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
                 if (CAR_HEAD == 1) {
                     if (g_gear != RIGHT) {
                         onside_ahead_slowdown(RIGHT);
@@ -206,7 +199,7 @@ void drive(struct MotorParam* param) {
                     onside_goback_speedup(LEFT);
                 }
                 g_gear = RIGHT;
-                printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
+                // printf("Current speed: %d %d\n", curr_speed[LEFT], curr_speed[RIGHT]);
                 break;
             }
             default: {
