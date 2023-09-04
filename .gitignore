@@ -12,3 +12,6 @@
 *.exe
 *.obj
 *.out
+
+# VSCode
+.vscode/

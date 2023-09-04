@@ -331,7 +331,7 @@ void* tracking_thread(void* args) {
     // pthread_mutex_unlock(&mutex_param);
 }
 
-int main(int argc, char argv[]) {
+int main(int argc, char* argv[]) {
     printf("Initializing...\n");
     if (wiringPiSetup() < 0) {
         perror("Start GPIO Failed.");
@@ -351,12 +351,31 @@ int main(int argc, char argv[]) {
     motor_param->dist = 400;
     motor_param->orient = AHEAD;
 
-    pthread_create(&tid[0], NULL, sonar_thread, motor_param);
-    pthread_create(&tid[1], NULL, keyboard_action_thread, motor_param);
-    pthread_create(&tid[2], NULL, motor_thread, motor_param);
-    // pthread_create(&tid[3], NULL, tracking_thread, motor_param);
-    pthread_create(&tid[4], NULL, temperature_thread, NULL);
-    pthread_create(&tid[5], NULL, button_thread, NULL);
+    // 创建线程，处理命令行参数
+    if (argc > 1) {
+        for (int i = 1; i < argc; i++) {  // sizeof(*argv)
+            // printf("argv[%d] = %s\n", i, argv[i]);
+            if (argv[i - 1] == "sonar")
+                pthread_create(&tid[i], NULL, sonar_thread, motor_param);
+            if (argv[i - 1] == "keyboard")
+                pthread_create(&tid[i], NULL, keyboard_action_thread, motor_param);
+            if (argv[i - 1] == "motor")
+                pthread_create(&tid[i], NULL, motor_thread, motor_param);
+            if (argv[i - 1] == "tracking")
+                pthread_create(&tid[i], NULL, tracking_thread, motor_param);
+            if (argv[i - 1] == "temperature")
+                pthread_create(&tid[i], NULL, temperature_thread, motor_param);
+            if (argv[i - 1] == "button")
+                pthread_create(&tid[i], NULL, button_thread, motor_param);
+        }
+    } else {
+        pthread_create(&tid[0], NULL, sonar_thread, motor_param);
+        pthread_create(&tid[1], NULL, keyboard_action_thread, motor_param);
+        pthread_create(&tid[2], NULL, motor_thread, motor_param);
+        // pthread_create(&tid[3], NULL, tracking_thread, motor_param);
+        pthread_create(&tid[4], NULL, temperature_thread, NULL);
+        pthread_create(&tid[5], NULL, button_thread, NULL);
+    }
 
     // 阻塞主线程，等待子线程结束
     for (int i = 0; i < THREAD_NUM; i++) {
