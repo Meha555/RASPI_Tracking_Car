@@ -20,6 +20,10 @@ void command_reset(int sig) {
 }
 
 void initial_actuator() {
+    // if (wiringPiSetup() < 0) {
+    //     perror("Start GPIO Failed.");
+    //     exit(1);
+    // }
     pinMode(SERVO_PIN, INPUT);
     softPwmCreate(SERVO_PIN, 0, 100);  // 创建softPwm对象
     // signal(SIGINT, command_reset);

@@ -43,4 +43,5 @@ try:
         #     print("右转")
         # time.sleep(3) # 行进3s
 except KeyboardInterrupt:
+    print("Pin clean")
     GPIO.cleanup()

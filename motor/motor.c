@@ -75,13 +75,13 @@ void bothside_goback_slowdown() {
     softPwmWrite(motor[RIGHT].m2, 0);
 }
 void onside_ahead_speedup(enum Direct direct) {
-    for (; curr_speed[direct] < PWM_MAX; curr_speed[direct] += PWM_DELTA) {
+    for (; curr_speed[direct] < PWM_MAX + PWM_DELTA; curr_speed[direct] += PWM_DELTA) {
         softPwmWrite(motor[direct].m1, curr_speed[direct]);
         delay(25);
     }
 }
 void onside_goback_speedup(enum Direct direct) {
-    for (; curr_speed[direct] < PWM_MAX; curr_speed[direct] += PWM_DELTA) {
+    for (; curr_speed[direct] < PWM_MAX + PWM_DELTA; curr_speed[direct] += PWM_DELTA) {
         softPwmWrite(motor[direct].m2, curr_speed[direct]);
         delay(25);
     }

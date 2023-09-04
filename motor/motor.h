@@ -4,6 +4,20 @@
 #include <pthread.h>
 #include <semaphore.h>
 
+#define PRINT_GEAR                          \
+    do {                                    \
+        if (g_gear == 0)                    \
+            printf("****GEAR: LEFT\n");     \
+        else if (g_gear == 1)               \
+            printf("****GEAR: RIGHT\n");    \
+        else if (g_gear == 2)               \
+            printf("****GEAR: FORWARD\n");  \
+        else if (g_gear == 3)               \
+            printf("****GEAR: BACKWARD\n"); \
+        else if (g_gear == 4)               \
+            printf("****GEAR: STOP\n");     \
+    } while (0);
+
 enum Direct {
     LEFT,
     RIGHT,
