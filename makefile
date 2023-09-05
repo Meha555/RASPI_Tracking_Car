@@ -4,7 +4,7 @@ CFLAGS = -w -I/usr/include/wiringPi -I/usr/include/pthread -g
 %.o: %.c  
 	$(CC) $(CFLAGS) -c $< -o $@  
   
-main: main.o bcd.o motor.o snoar.o actuator.o ray.o thread_tools.o buzzer.o button_ctrl.o temperature.o#led.o  
+main: main.o bcd.o motor.o snoar.o actuator.o ray.o thread_tools.o buzzer.o button_ctrl.o temperature.o raspi_tcp.o#led.o  
 	$(CC) $^ -lwiringPi -lpthread -o main  
   
 main.o: main.c  
@@ -36,6 +36,9 @@ temperature.o: temperature/dht11.c
   
 # led.o: led/led.c  
 # 	$(CC) $(CFLAGS) -c $< -o $@  
+
+raspi_tcp.o: net/tcp_socket/raspi_tcp.c
+	$(CC) $(CFLAGS) -c $< -o $@  
 
 thread_tools.o: utils/thread_tools.c  
 	$(CC) $(CFLAGS) -c $< -o $@  

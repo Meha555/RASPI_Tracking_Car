@@ -3,6 +3,7 @@
 #include <softPwm.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <termio.h>
 #include <unistd.h>
 #include <wiringPi.h>
@@ -12,6 +13,7 @@
 #include "button/buzzer.h"
 #include "led/led.h"
 #include "motor/motor.h"
+#include "net/tcp_socket/raspi_tcp.h"
 #include "ray/ray.h"
 #include "sonar/hc_sr04.h"
 #include "temperature/dht11.h"
@@ -39,6 +41,13 @@ static void catch_sigint(int sig) {
     tcsetattr(0, TCSANOW, &tms_old);  // 恢复旧的终端属性
     signal(SIGINT, SIG_DFL);
     exit(0);  // 结束进程
+}
+
+// TCP服务器
+void* tcpserver_thread(void* args) {
+    printf("In tcpserver_thread.\n");
+    struct TcpParam* param = (struct TcpParam*)args;
+    setup_tcpserver(param);
 }
 
 // 按钮控制
@@ -75,7 +84,7 @@ void* temperature_thread(void* args) {
 // 超声波+舵机+数码管
 void* sonar_thread(void* args) {
     printf("In sonar_thread.\n");
-    struct MotorParam* param = (struct MotorParam*)args;
+    struct TcpParam* param = (struct TcpParam*)args;
     tm1637_init();
     inital_hr024();
     initial_actuator();
@@ -93,10 +102,11 @@ void* sonar_thread(void* args) {
                 printf("Dectecting dist: %d CM\n", dist);
             bcd_display(0, dist / 100, dist % 100 / 10, dist % 10, 0);
             pthread_mutex_lock(&mutex_param);
-            param->dist = dist;  // 写入距离到参数地址
-            if (param->dist <= 30) {
+            param->motor_param.dist = dist;  // 写入距离到参数地址
+            // param->dist = dist;
+            if (param->motor_param.dist <= 30) {
                 printf("Emergency Break!\n");
-                param->key_pressed = 'E';
+                param->motor_param.key_pressed = 'E';
                 sem_post(&sem_keyboard);
                 // DOUBLE_BEEP;
                 buzzer_beep(1);
@@ -116,10 +126,10 @@ void* sonar_thread(void* args) {
                 printf("Dectecting dist: %d CM\n", dist);
             bcd_display(0, dist / 100, dist % 100 / 10, dist % 10, 0);
             pthread_mutex_lock(&mutex_param);
-            param->dist = dist;  // 写入距离到参数地址
-            if (param->dist <= 30) {
+            param->motor_param.dist = dist;  // 写入距离到参数地址
+            if (param->motor_param.dist <= 30) {
                 printf("Emergency Break!\n");
-                param->key_pressed = 'E';
+                param->motor_param.key_pressed = 'E';
                 sem_post(&sem_keyboard);
                 // DOUBLE_BEEP;
                 buzzer_beep(1);
@@ -145,7 +155,7 @@ void* sonar_thread(void* args) {
 // 键盘动作
 void* keyboard_action_thread(void* args) {
     printf("In keyboard_action_thread.\n");
-    struct MotorParam* param = (struct MotorParam*)args;
+    struct TcpParam* param = (struct TcpParam*)args;
     // 设置新的终端属性
     tms_new = tms_old;                    // 复制终端属性
     tms_new.c_lflag &= ~(ICANON | ECHO);  // 禁用标准输入的行缓冲和回显
@@ -161,7 +171,7 @@ void* keyboard_action_thread(void* args) {
         // } else {
         ch = getchar();  // getchar()写锁外面，避免锁内阻塞
         pthread_mutex_lock(&mutex_param);
-        param->key_pressed = ch;
+        param->motor_param.key_pressed = ch;
         pthread_mutex_unlock(&mutex_param);
         // }
         sem_post(&sem_keyboard);
@@ -171,13 +181,13 @@ void* keyboard_action_thread(void* args) {
 // 电机
 void* motor_thread(void* args) {
     printf("In motor_thread.\n");
-    struct MotorParam* param = (struct MotorParam*)args;
+    struct TcpParam* param = (struct TcpParam*)args;
     drive(param);
 }
 
 void* tracking_thread(void* args) {
     printf("In actuator_thread.\n");
-    struct MotorParam* param = (struct MotorParam*)args;
+    struct TcpParam* param = (struct TcpParam*)args;
     initial_tcrt5000();
     unsigned char ch = 'E';
     while (1) {
@@ -262,7 +272,7 @@ void* tracking_thread(void* args) {
                     ch = 'E';
                     buzzer_beep(1);
                     pthread_mutex_lock(&mutex_param);
-                    param->key_pressed = ch;
+                    param->motor_param.key_pressed = ch;
                     pthread_mutex_unlock(&mutex_param);
                     sem_post(&sem_keyboard);
                 } else {
@@ -297,7 +307,7 @@ void* tracking_thread(void* args) {
                         printf("后退\n");
                         ch = 'S';
                         pthread_mutex_lock(&mutex_param);
-                        param->key_pressed = ch;
+                        param->motor_param.key_pressed = ch;
                         pthread_mutex_unlock(&mutex_param);
                         sem_post(&sem_keyboard);
                         delay(500);
@@ -324,11 +334,6 @@ void* tracking_thread(void* args) {
         }
         //     delay(100);
     }
-
-    // pthread_mutex_lock(&mutex_param);
-    // param.orient =
-    // printf("Submit key_pressed %c.\n", param.key_pressed);
-    // pthread_mutex_unlock(&mutex_param);
 }
 
 int main(int argc, char* argv[]) {
@@ -346,35 +351,45 @@ int main(int argc, char* argv[]) {
     pthread_mutex_init(&mutex_param, NULL);
 
     // 初始化参数
-    struct MotorParam* motor_param = (struct MotorParam*)malloc(sizeof(struct MotorParam));
-    motor_param->key_pressed = 'E';
-    motor_param->dist = 400;
-    motor_param->orient = AHEAD;
+    // struct TcpParam* motor_param = (struct TcpParam*)malloc(sizeof(struct TcpParam));
+    // motor_param->key_pressed = 'E';
+    // motor_param->dist = 400;
+    // motor_param->orient = AHEAD;
+    struct TcpParam* tcp_param = (struct TcpParam*)malloc(sizeof(struct TcpParam));
+    tcp_param->motor_param.key_pressed = 'E';
+    tcp_param->motor_param.dist = 400;
+    tcp_param->motor_param.orient = AHEAD;
 
     // 创建线程，处理命令行参数
+    printf("argc = %d,sizeof(*argv) = %d\n", argc, sizeof(*argv));
     if (argc > 1) {
         for (int i = 1; i < argc; i++) {  // sizeof(*argv)
-            // printf("argv[%d] = %s\n", i, argv[i]);
-            if (argv[i - 1] == "sonar")
-                pthread_create(&tid[i], NULL, sonar_thread, motor_param);
-            if (argv[i - 1] == "keyboard")
-                pthread_create(&tid[i], NULL, keyboard_action_thread, motor_param);
-            if (argv[i - 1] == "motor")
-                pthread_create(&tid[i], NULL, motor_thread, motor_param);
-            if (argv[i - 1] == "tracking")
-                pthread_create(&tid[i], NULL, tracking_thread, motor_param);
-            if (argv[i - 1] == "temperature")
-                pthread_create(&tid[i], NULL, temperature_thread, motor_param);
-            if (argv[i - 1] == "button")
-                pthread_create(&tid[i], NULL, button_thread, motor_param);
+            printf("argv[%d] = %s\n", i, argv[i]);
+            if (strcmp(argv[i], "sonar"))
+                pthread_create(&tid[i - 1], NULL, sonar_thread, tcp_param);
+            else if (strcmp(argv[i], "keyboard"))
+                pthread_create(&tid[i - 1], NULL, keyboard_action_thread, tcp_param);
+            else if (strcmp(argv[i], "motor"))
+                pthread_create(&tid[i - 1], NULL, motor_thread, tcp_param);
+            else if (strcmp(argv[i], "tracking"))
+                pthread_create(&tid[i - 1], NULL, tracking_thread, tcp_param);
+            else if (strcmp(argv[i], "temperature"))
+                pthread_create(&tid[i - 1], NULL, temperature_thread, tcp_param);
+            else if (strcmp(argv[i], "button"))
+                pthread_create(&tid[i - 1], NULL, button_thread, tcp_param);
+            else if (strcmp(argv[i], "tcp"))
+                pthread_create(&tid[i - 1], NULL, tcpserver_thread, tcp_param);
+            else
+                perror("Invalid Input argument!\n");
         }
     } else {
-        pthread_create(&tid[0], NULL, sonar_thread, motor_param);
-        pthread_create(&tid[1], NULL, keyboard_action_thread, motor_param);
-        pthread_create(&tid[2], NULL, motor_thread, motor_param);
-        // pthread_create(&tid[3], NULL, tracking_thread, motor_param);
+        pthread_create(&tid[0], NULL, sonar_thread, tcp_param);
+        pthread_create(&tid[1], NULL, keyboard_action_thread, tcp_param);
+        pthread_create(&tid[2], NULL, motor_thread, tcp_param);
+        // pthread_create(&tid[3], NULL, tracking_thread, tcp_param);
         pthread_create(&tid[4], NULL, temperature_thread, NULL);
         pthread_create(&tid[5], NULL, button_thread, NULL);
+        pthread_create(&tid[6], NULL, tcpserver_thread, tcp_param);
     }
 
     // 阻塞主线程，等待子线程结束
@@ -388,6 +403,8 @@ int main(int argc, char* argv[]) {
     sem_destroy(&sem_keyboard);
     pthread_mutex_destroy(&mutex_param);
 
+    // 清理堆上变量
+    free(tcp_param);
     // TODO - 添加清理引脚的代码
 
     return 0;

@@ -3,6 +3,7 @@
 
 #include <pthread.h>
 #include <semaphore.h>
+#include "../net/tcp_socket/raspi_tcp.h"
 
 #define PRINT_GEAR                          \
     do {                                    \
@@ -26,14 +27,6 @@ enum Direct {
     STOP
 };
 
-struct MotorParam {
-    unsigned char key_pressed;
-    int dist;
-    enum Orientation { AHEAD,
-                       TURN_LEFT,
-                       TURN_RIGHT } orient;
-};
-
 extern struct Motor {
     int m1;  // 正转引脚
     int m2;  // 反转引脚
@@ -44,7 +37,7 @@ extern sem_t sem_sonar;              // 声呐资源信号量
 extern pthread_mutex_t mutex_param;  // 电机参数锁
 
 extern void inital_drive();
-extern void drive(struct MotorParam* param);
+extern void drive(struct TcpParam* param);
 extern void command_stop(int);
 
 extern void bothside_ahead_speedup();

@@ -107,14 +107,14 @@ void drive_break() {
         curr_speed[i] = 0;
     }
 }
-void drive(struct MotorParam* param) {
+void drive(struct TcpParam* param) {
     inital_drive();
     int dist = 0;
     unsigned char ch = 'E';
     while (1) {
         sem_wait(&sem_keyboard);  // 等待键盘动作
         pthread_mutex_lock(&mutex_param);
-        ch = param->key_pressed;
+        ch = param->motor_param.key_pressed;
         // printf("--Get KEY: %c--\n", ch);
         // printf("--Get DIST: %d--\n", param->dist);
         // printf("--Get ORIENT: %d--\n", param->orient);
