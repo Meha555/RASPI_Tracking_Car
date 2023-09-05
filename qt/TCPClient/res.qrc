@@ -1,0 +1,9 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file>assets/clear.png</file>
+        <file>assets/connect.png</file>
+        <file>assets/disconnect.png</file>
+        <file>assets/exit.png</file>
+        <file>assets/logo.png</file>
+    </qresource>
+</RCC>
