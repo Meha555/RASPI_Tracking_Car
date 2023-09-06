@@ -19,8 +19,8 @@ int main(int argc, char* argv[]) {
     // 将套接字与特定的IP地址和端口绑定起来，使得来自该IP地址并经过该端口的数据交由该套接字处理
     memset(&serveraddr, 0, sizeof(serveraddr));  // 对于sockaddr_in结构体，先用 memset() 将结构体的全部字节填充为 0，再给前3个成员赋值，剩下的 sin_zero 自然就是 0 了。
     serveraddr.sin_family = AF_INET;
-    serveraddr.sin_addr.s_addr = inet_addr(argv[1]);
-    serveraddr.sin_port = htons(atoi(argv[2]));  // INADDR_ANY
+    serveraddr.sin_addr.s_addr = inet_addr(argv[1]);  // INADDR_ANY
+    serveraddr.sin_port = htons(atoi(argv[2]));  
     if (bind(listenfd, (struct sockaddr*)&serveraddr, sizeof(serveraddr)) == -1) {
         perror("Bind failure!");
         exit(-1);

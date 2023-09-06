@@ -27,11 +27,30 @@ void initial_buzzer() {
     pinMode(BUTTON_PIN, INPUT);
 }
 
-void buzzer_beep(int flag) {
+void buzzer_single_beep(int flag) {
     if (flag)
         digitalWrite(BEEP_PIN, HIGH);
     else
         digitalWrite(BEEP_PIN, LOW);
+}
+
+void buzzer_control() {
+    while (1) {
+        if (digitalRead(BUTTON_PIN) == HIGH) {      // 初次检测
+            delay(20);                              // 延迟20ms防抖
+            if (digitalRead(BUTTON_PIN) == HIGH) {  // 再次检测
+                printf("Key pin: %d\n", digitalRead(BUTTON_PIN));
+                while ((digitalRead(BUTTON_PIN) == HIGH))
+                    ;  // 等待按键弹起
+                // 此时就是真正的按键弹起后了
+                printf("Key pin: %d\n", digitalRead(BUTTON_PIN));
+                if (digitalRead(BEEP_PIN) == LOW)
+                    digitalWrite(BEEP_PIN, HIGH);
+                else
+                    digitalWrite(BEEP_PIN, LOW);
+            }
+        }
+    }
 }
 
 // int main(void) {

@@ -35,9 +35,10 @@ static void catch_sigint(int sig) {
     for (int i = 0; i < THREAD_NUM; i++) {
         pthread_cancel(tid[i]);
     }
-    command_stop(0);                  // motor
-    command_reset(0);                 // actuator
-    command_shut(0);                  // buzzer
+    command_stop(0);   // motor
+    command_reset(0);  // actuator
+    command_shut(0);   // buzzer
+    // TODO - 发送终止服务器2个线程的信号
     tcsetattr(0, TCSANOW, &tms_old);  // 恢复旧的终端属性
     signal(SIGINT, SIG_DFL);
     exit(0);  // 结束进程
@@ -53,13 +54,17 @@ void* tcpserver_thread(void* args) {
 // 按钮控制
 void* button_thread(void* args) {
     printf("In button_thread.\n");
+    struct TcpParam* param = (struct TcpParam*)args;
     initial_button();
-    button_action(catch_sigint);
+    initial_buzzer();
+    // button_action(catch_sigint);
+    buzzer_single_beep((int)param->buzzer_pin);
 }
 
 // 测湿温度
 void* temperature_thread(void* args) {
     printf("In temperature_thread.\n");
+    struct TcpParam* param = (struct TcpParam*)args;
     unsigned char data[5] = {0};
     while (1) {
         switch (dht11_read_data(data)) {
@@ -67,8 +72,12 @@ void* temperature_thread(void* args) {
                 printf("Checksum Error! %d %d %d %d %d\n", data[0], data[1], data[2], data[3], data[4]);
                 break;
             case 1:
-                printf("Humidity = %d.%d, Temperature = %d.%d\n", data[0], data[1], data[2], data[3]);
+                // printf("Humidity = %d.%d, Temperature = %d.%d\n", data[0], data[1], data[2], data[3]);
                 bcd_display(data[0], data[1], data[2], data[3], 1);
+                pthread_mutex_lock(&mutex_param);
+                param->dht11_param.humidity = data[0] + data[1] / 10;
+                param->dht11_param.temperature = data[2] + data[3] / 10;
+                pthread_mutex_unlock(&mutex_param);
                 break;
             case 2:
                 printf("Time Out!\n");
@@ -88,7 +97,7 @@ void* sonar_thread(void* args) {
     tm1637_init();
     inital_hr024();
     initial_actuator();
-    initial_buzzer();
+    // initial_buzzer();
     int flag = 1;
     while (1) {
         // 左转
@@ -96,10 +105,10 @@ void* sonar_thread(void* args) {
             // printf("Actuator spin left %d degree.\n", i);
             softPwmWrite(SERVO_PIN, get_duty_cycle(i));
             int dist = get_distance();
-            if (dist >= 400)
-                printf("Lose precision!\n");
-            else
-                printf("Dectecting dist: %d CM\n", dist);
+            // if (dist >= 400)
+            //     printf("Lose precision!\n");
+            // else
+            //     printf("Dectecting dist: %d CM\n", dist);
             bcd_display(0, dist / 100, dist % 100 / 10, dist % 10, 0);
             pthread_mutex_lock(&mutex_param);
             param->motor_param.dist = dist;  // 写入距离到参数地址
@@ -109,9 +118,9 @@ void* sonar_thread(void* args) {
                 param->motor_param.key_pressed = 'E';
                 sem_post(&sem_keyboard);
                 // DOUBLE_BEEP;
-                buzzer_beep(1);
+                buzzer_single_beep(1);
             } else
-                buzzer_beep(0);
+                buzzer_single_beep(0);
             pthread_mutex_unlock(&mutex_param);
             delay(500);
         }
@@ -120,10 +129,10 @@ void* sonar_thread(void* args) {
             // printf("Actuator spin right %d degree.\n", i);
             softPwmWrite(SERVO_PIN, get_duty_cycle(i));
             int dist = get_distance();
-            if (dist >= 400)
-                printf("Lose precision!\n");
-            else
-                printf("Dectecting dist: %d CM\n", dist);
+            // if (dist >= 400)
+            //     printf("Lose precision!\n");
+            // else
+            //     printf("Dectecting dist: %d CM\n", dist);
             bcd_display(0, dist / 100, dist % 100 / 10, dist % 10, 0);
             pthread_mutex_lock(&mutex_param);
             param->motor_param.dist = dist;  // 写入距离到参数地址
@@ -132,9 +141,9 @@ void* sonar_thread(void* args) {
                 param->motor_param.key_pressed = 'E';
                 sem_post(&sem_keyboard);
                 // DOUBLE_BEEP;
-                buzzer_beep(1);
+                buzzer_single_beep(1);
             } else
-                buzzer_beep(0);
+                buzzer_single_beep(0);
             pthread_mutex_unlock(&mutex_param);
             delay(500);
         }
@@ -270,7 +279,7 @@ void* tracking_thread(void* args) {
                 if (try_cnt >= 5) {
                     printf("Try failed.\n");
                     ch = 'E';
-                    buzzer_beep(1);
+                    buzzer_single_beep(1);
                     pthread_mutex_lock(&mutex_param);
                     param->motor_param.key_pressed = ch;
                     pthread_mutex_unlock(&mutex_param);
@@ -337,6 +346,10 @@ void* tracking_thread(void* args) {
 }
 
 int main(int argc, char* argv[]) {
+    printf("--------------------------------------------------------------------\n");
+    printf("Usage: ./main module_name(Leave blank to start all)\n");
+    printf("modules: sonar, keyboard, motor, tracking, temperature, button, tcp\n");
+    printf("--------------------------------------------------------------------\n");
     printf("Initializing...\n");
     if (wiringPiSetup() < 0) {
         perror("Start GPIO Failed.");
@@ -356,39 +369,42 @@ int main(int argc, char* argv[]) {
     // motor_param->dist = 400;
     // motor_param->orient = AHEAD;
     struct TcpParam* tcp_param = (struct TcpParam*)malloc(sizeof(struct TcpParam));
+    tcp_param->buzzer_pin = LOW;
     tcp_param->motor_param.key_pressed = 'E';
     tcp_param->motor_param.dist = 400;
     tcp_param->motor_param.orient = AHEAD;
+    tcp_param->dht11_param.temperature = 0;
+    tcp_param->dht11_param.humidity = 0;
 
     // 创建线程，处理命令行参数
     printf("argc = %d,sizeof(*argv) = %d\n", argc, sizeof(*argv));
     if (argc > 1) {
         for (int i = 1; i < argc; i++) {  // sizeof(*argv)
             printf("argv[%d] = %s\n", i, argv[i]);
-            if (strcmp(argv[i], "sonar"))
+            if (strcmp(argv[i], "sonar") == 0)
                 pthread_create(&tid[i - 1], NULL, sonar_thread, tcp_param);
-            else if (strcmp(argv[i], "keyboard"))
+            else if (strcmp(argv[i], "keyboard") == 0)
                 pthread_create(&tid[i - 1], NULL, keyboard_action_thread, tcp_param);
-            else if (strcmp(argv[i], "motor"))
+            else if (strcmp(argv[i], "motor") == 0)
                 pthread_create(&tid[i - 1], NULL, motor_thread, tcp_param);
-            else if (strcmp(argv[i], "tracking"))
+            else if (strcmp(argv[i], "tracking") == 0)
                 pthread_create(&tid[i - 1], NULL, tracking_thread, tcp_param);
-            else if (strcmp(argv[i], "temperature"))
+            else if (strcmp(argv[i], "temperature") == 0)
                 pthread_create(&tid[i - 1], NULL, temperature_thread, tcp_param);
-            else if (strcmp(argv[i], "button"))
+            else if (strcmp(argv[i], "button") == 0)
                 pthread_create(&tid[i - 1], NULL, button_thread, tcp_param);
-            else if (strcmp(argv[i], "tcp"))
+            else if (strcmp(argv[i], "tcp") == 0)
                 pthread_create(&tid[i - 1], NULL, tcpserver_thread, tcp_param);
             else
                 perror("Invalid Input argument!\n");
         }
     } else {
-        pthread_create(&tid[0], NULL, sonar_thread, tcp_param);
+        // pthread_create(&tid[0], NULL, sonar_thread, tcp_param);
         pthread_create(&tid[1], NULL, keyboard_action_thread, tcp_param);
         pthread_create(&tid[2], NULL, motor_thread, tcp_param);
         // pthread_create(&tid[3], NULL, tracking_thread, tcp_param);
-        pthread_create(&tid[4], NULL, temperature_thread, NULL);
-        pthread_create(&tid[5], NULL, button_thread, NULL);
+        pthread_create(&tid[4], NULL, temperature_thread, tcp_param);
+        pthread_create(&tid[5], NULL, button_thread, tcp_param);
         pthread_create(&tid[6], NULL, tcpserver_thread, tcp_param);
     }
 

@@ -38,7 +38,7 @@ temperature.o: temperature/dht11.c
 # 	$(CC) $(CFLAGS) -c $< -o $@  
 
 raspi_tcp.o: net/tcp_socket/raspi_tcp.c
-	$(CC) $(CFLAGS) -c $< -o $@  
+	$(CC) $(CFLAGS) -c $< -o $@ 
 
 thread_tools.o: utils/thread_tools.c  
 	$(CC) $(CFLAGS) -c $< -o $@  
