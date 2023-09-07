@@ -27,6 +27,18 @@ struct termios tms_old, tms_new;  // 声明终端属性结构体
 sem_t sem_keyboard;           // 键盘资源信号量
 sem_t sem_sonar;              // 声呐资源信号量
 pthread_mutex_t mutex_param;  // 电机参数锁
+// pthread_mutex_t mutex_auto_keyctrl;   // 键盘控制锁
+// pthread_mutex_t mutex_auto_tracking;  // 循迹控制锁
+
+// int auto_keyctrl = 1, auto_tracking = 0;
+
+void* tcpserver_thread(void* args);
+void* button_thread(void* args);
+void* temperature_thread(void* args);
+void* sonar_thread(void* args);
+void* keyboard_action_thread(void* args);
+void* motor_thread(void* args);
+void* tracking_thread(void* args);
 
 // 捕获CTRL+C
 static void catch_sigint(int sig) {
@@ -40,6 +52,9 @@ static void catch_sigint(int sig) {
     command_shut(0);   // buzzer
     // TODO - 发送终止服务器2个线程的信号
     tcsetattr(0, TCSANOW, &tms_old);  // 恢复旧的终端属性
+    // 清理引脚
+    for (int pin = 1; pin <= 40; pin++)  // 树莓派3B板载40根引脚
+        pinMode(pin, INPUT);
     signal(SIGINT, SIG_DFL);
     exit(0);  // 结束进程
 }
@@ -56,9 +71,35 @@ void* button_thread(void* args) {
     printf("In button_thread.\n");
     struct TcpParam* param = (struct TcpParam*)args;
     initial_button();
-    initial_buzzer();
     // button_action(catch_sigint);
-    buzzer_single_beep((int)param->buzzer_pin);
+    while (1) {
+        // 调整最新的蜂鸣器电平
+        buzzer_single_beep((int)param->buzzer_pin);
+        // 调整最新的控制系统设置
+        // if (param->keyctrl_switcher) {
+        //     // if (pthread_kill(tid[3], 0) == 0) {
+        //     //     printf("Disable auto tracking!\n");
+        //     //     pthread_cancel(tid[3]);
+        //     // }
+        //     // printf("Activate keyboard control!\n");
+        //     // pthread_create(&tid[1], NULL, keyboard_action_thread, param);
+        //     // printf("Disable auto tracking!\n");
+        //     auto_tracking = 0;
+        //     // printf("Activate keyboard control!\n");
+        //     auto_keyctrl = 1;
+        // } else {
+        //     // if (pthread_kill(tid[1], 0) == 0) {
+        //     //     printf("Disable keyboard control!\n");
+        //     //     pthread_cancel(tid[1]);
+        //     // }
+        //     // printf("Activate auto tracking!\n");
+        //     // pthread_create(&tid[3], NULL, tracking_thread, param);
+        //     // printf("Disable keyboard control!\n");
+        //     auto_keyctrl = 0;
+        //     // printf("Activate auto tracking!\n");
+        //     auto_tracking = 1;
+        // }
+    }
 }
 
 // 测湿温度
@@ -94,22 +135,21 @@ void* temperature_thread(void* args) {
 void* sonar_thread(void* args) {
     printf("In sonar_thread.\n");
     struct TcpParam* param = (struct TcpParam*)args;
-    tm1637_init();
     inital_hr024();
     initial_actuator();
-    // initial_buzzer();
-    int flag = 1;
     while (1) {
         // 左转
         for (int i = -90; i < 90; i += 45) {
-            // printf("Actuator spin left %d degree.\n", i);
-            softPwmWrite(SERVO_PIN, get_duty_cycle(i));
+            if (param->servo_pin) {
+                printf("Actuator spin left %d degree.\n", i);
+                softPwmWrite(SERVO_PIN, get_duty_cycle(i));
+            }
             int dist = get_distance();
-            // if (dist >= 400)
-            //     printf("Lose precision!\n");
-            // else
-            //     printf("Dectecting dist: %d CM\n", dist);
-            bcd_display(0, dist / 100, dist % 100 / 10, dist % 10, 0);
+            if (dist >= 400)
+                printf("Lose precision!\n");
+            else
+                printf("Dectecting dist: %d CM\n", dist);
+            // bcd_display(0, dist / 100, dist % 100 / 10, dist % 10, 0);
             pthread_mutex_lock(&mutex_param);
             param->motor_param.dist = dist;  // 写入距离到参数地址
             // param->dist = dist;
@@ -126,14 +166,16 @@ void* sonar_thread(void* args) {
         }
         // 右转
         for (int i = 90; i > -90; i -= 45) {
-            // printf("Actuator spin right %d degree.\n", i);
-            softPwmWrite(SERVO_PIN, get_duty_cycle(i));
+            if (param->servo_pin) {
+                printf("Actuator spin right %d degree.\n", i);
+                softPwmWrite(SERVO_PIN, get_duty_cycle(i));
+            }
             int dist = get_distance();
-            // if (dist >= 400)
-            //     printf("Lose precision!\n");
-            // else
-            //     printf("Dectecting dist: %d CM\n", dist);
-            bcd_display(0, dist / 100, dist % 100 / 10, dist % 10, 0);
+            if (dist >= 400)
+                printf("Lose precision!\n");
+            else
+                printf("Dectecting dist: %d CM\n", dist);
+            // bcd_display(0, dist / 100, dist % 100 / 10, dist % 10, 0);
             pthread_mutex_lock(&mutex_param);
             param->motor_param.dist = dist;  // 写入距离到参数地址
             if (param->motor_param.dist <= 30) {
@@ -147,17 +189,6 @@ void* sonar_thread(void* args) {
             pthread_mutex_unlock(&mutex_param);
             delay(500);
         }
-        // int dist = get_distance();
-        // if (dist >= 400)
-        //     printf("Lose precision!\n");
-        // else
-        //     printf("Dectecting dist: %d CM\n", dist);
-        // flag ^= 1;
-        // bcd_display(0, dist / 100, dist % 100 / 10, dist % 10, flag);
-        // pthread_mutex_lock(&mutex_param);
-        // param.dist = dist;  // 写入距离到参数地址
-        // pthread_mutex_unlock(&mutex_param);
-        // delay(500);
     }
 }
 
@@ -171,6 +202,9 @@ void* keyboard_action_thread(void* args) {
     tcsetattr(0, TCSANOW, &tms_new);      // 设置新的终端属性
     unsigned char ch = 'E';
     while (1) {
+        while (!param->keyctrl_switcher) {
+            pthread_yield(NULL);  // 主动放弃处理机
+        }
         // 这段需要即时判断距离的代码不能和getchar()放在同一线程中，否则getchar()阻塞后将无法即时判断距离
         // if (param->dist <= 5) {
         //     pthread_mutex_lock(&mutex_param);
@@ -200,7 +234,10 @@ void* tracking_thread(void* args) {
     initial_tcrt5000();
     unsigned char ch = 'E';
     while (1) {
-        printf("电位：%d %d %d %d\n", digitalRead(tracker.line_l), digitalRead(tracker.line_m1), digitalRead(tracker.line_m2), digitalRead(tracker.line_r));
+        while (param->keyctrl_switcher) {
+            pthread_yield(NULL);  // 主动放弃处理机
+        }
+        //    printf("电位：%d %d %d %d\n", digitalRead(tracker.line_l), digitalRead(tracker.line_m1), digitalRead(tracker.line_m2), digitalRead(tracker.line_r));
         // while ((digitalRead(tracker.line_l) == HIGH & digitalRead(tracker.line_m1) == LOW & digitalRead(tracker.line_m2) == LOW & digitalRead(tracker.line_r) == LOW)) {
         //     printf("左转\n");
         //     softPwmWrite(motor[LEFT].m2, 40);
@@ -355,6 +392,8 @@ int main(int argc, char* argv[]) {
         perror("Start GPIO Failed.");
         exit(1);
     }
+    tm1637_init();
+    initial_buzzer();
     signal(SIGINT, catch_sigint);
     tcgetattr(0, &tms_old);  // 获取旧的终端属性
 
@@ -362,6 +401,8 @@ int main(int argc, char* argv[]) {
     sem_init(&sem_sonar, 0, 0);
     sem_init(&sem_keyboard, 0, 0);
     pthread_mutex_init(&mutex_param, NULL);
+    // pthread_mutex_init(&mutex_auto_keyctrl, NULL);
+    // pthread_mutex_init(&mutex_auto_tracking, NULL);
 
     // 初始化参数
     // struct TcpParam* motor_param = (struct TcpParam*)malloc(sizeof(struct TcpParam));
@@ -370,6 +411,8 @@ int main(int argc, char* argv[]) {
     // motor_param->orient = AHEAD;
     struct TcpParam* tcp_param = (struct TcpParam*)malloc(sizeof(struct TcpParam));
     tcp_param->buzzer_pin = LOW;
+    tcp_param->keyctrl_switcher = HIGH;
+    tcp_param->servo_pin = LOW;
     tcp_param->motor_param.key_pressed = 'E';
     tcp_param->motor_param.dist = 400;
     tcp_param->motor_param.orient = AHEAD;
@@ -399,14 +442,14 @@ int main(int argc, char* argv[]) {
                 perror("Invalid Input argument!\n");
         }
     } else {
-        // pthread_create(&tid[0], NULL, sonar_thread, tcp_param);
+        pthread_create(&tid[0], NULL, sonar_thread, tcp_param);
         pthread_create(&tid[1], NULL, keyboard_action_thread, tcp_param);
         pthread_create(&tid[2], NULL, motor_thread, tcp_param);
-        // pthread_create(&tid[3], NULL, tracking_thread, tcp_param);
+        pthread_create(&tid[3], NULL, tracking_thread, tcp_param);
         pthread_create(&tid[4], NULL, temperature_thread, tcp_param);
-        pthread_create(&tid[5], NULL, button_thread, tcp_param);
-        pthread_create(&tid[6], NULL, tcpserver_thread, tcp_param);
+        pthread_create(&tid[5], NULL, tcpserver_thread, tcp_param);
     }
+    pthread_create(&tid[6], NULL, button_thread, tcp_param);
 
     // 阻塞主线程，等待子线程结束
     for (int i = 0; i < THREAD_NUM; i++) {
@@ -418,10 +461,9 @@ int main(int argc, char* argv[]) {
     sem_destroy(&sem_sonar);
     sem_destroy(&sem_keyboard);
     pthread_mutex_destroy(&mutex_param);
-
+    // pthread_mutex_destroy(&mutex_auto_keyctrl);
+    // pthread_mutex_destroy(&mutex_auto_tracking);
     // 清理堆上变量
     free(tcp_param);
-    // TODO - 添加清理引脚的代码
-
     return 0;
 }

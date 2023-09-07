@@ -13,7 +13,7 @@ void* send_tcp_segment(struct TcpParam* args) {
     while (1) {
         // 服务器往客户端发送数据
         memset(buf_send, 0, sizeof(buf_send));
-        printf("Sending...\n");
+        // printf("Sending...\n");
         ssize_t n = sizeof(struct TcpParam);
         memcpy(buf_send, param, n);
         // PRINT_TCP_PARAM(param);
@@ -29,12 +29,12 @@ void* recv_tcp_segment(struct TcpParam* args) {
     while (1) {
         // 服务器接收客户端发送的数据
         memset(buf_recv, 0, sizeof(buf_recv));
-        printf("Receiving...\n");
+        // printf("Receiving...\n");
         ssize_t n = recv(connfd, buf_recv, BUFF_SIZE, 0);
         if (n <= 0) {
             pthread_exit(0);
         } else
-            printf("接收到的长度: %d\n", n);
+            printf("Received %d Bytes\n", n);
         if (strcmp(buf_recv, "close") == 0) {
             printf("Server shutting down~\n");
             pthread_cancel(tid[0]);  // 终止发送线程
@@ -47,6 +47,7 @@ void* recv_tcp_segment(struct TcpParam* args) {
         pthread_mutex_lock(&mutex_param);
         param->buzzer_pin = recv_param->buzzer_pin;
         param->keyctrl_switcher = recv_param->keyctrl_switcher;
+        param->servo_pin = recv_param->servo_pin;
         param->motor_param.key_pressed = recv_param->motor_param.key_pressed;
         // param->motor_param.dist = recv_param->motor_param.dist;
         // param->motor_param.orient = recv_param->motor_param.orient;

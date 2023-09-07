@@ -11,6 +11,7 @@
 struct TcpParam {
     unsigned char buzzer_pin;        // 1 byte
     unsigned char keyctrl_switcher;  // 1 byte
+    unsigned char servo_pin;         // 1 byte
     struct {
         unsigned char key_pressed;  // 1 byte
         int dist;                   // 4 bytes
@@ -29,6 +30,7 @@ struct TcpParam {
     do {                                                               \
         printf("**buzzer pin: %d\n", param->buzzer_pin);               \
         printf("**keyctrl: %d\n", param->keyctrl_switcher);            \
+        printf("**soar pin: %c\n", param->servo_pin);                  \
         printf("**key_pressed: %c\n", param->motor_param.key_pressed); \
         printf("**dist: %d\n", param->motor_param.dist);               \
         printf("**orient: ");                                          \

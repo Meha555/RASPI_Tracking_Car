@@ -43,22 +43,53 @@
           <item>
            <widget class="QLabel" name="label_5">
             <property name="text">
-             <string>距离：</string>
+             <string>距离:</string>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QLineEdit" name="lineEdit_2"/>
+           <widget class="QLCDNumber" name="lcdDist">
+            <property name="frameShape">
+             <enum>QFrame::StyledPanel</enum>
+            </property>
+           </widget>
           </item>
           <item>
-           <widget class="QLabel" name="label_6">
+           <widget class="QLabel" name="label_7">
             <property name="text">
-             <string>湿度：</string>
+             <string>CM</string>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QLineEdit" name="lineEdit_3"/>
+           <widget class="QCheckBox" name="buzzerSwitch">
+            <property name="layoutDirection">
+             <enum>Qt::RightToLeft</enum>
+            </property>
+            <property name="text">
+             <string>蜂鸣器</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="keyboardSwitch">
+            <property name="layoutDirection">
+             <enum>Qt::RightToLeft</enum>
+            </property>
+            <property name="text">
+             <string>键盘控制</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="sonarSwitch">
+            <property name="layoutDirection">
+             <enum>Qt::RightToLeft</enum>
+            </property>
+            <property name="text">
+             <string>舵机</string>
+            </property>
+           </widget>
           </item>
          </layout>
         </widget>
@@ -69,24 +100,91 @@
           <item>
            <widget class="QLabel" name="label_3">
             <property name="text">
-             <string>温度：</string>
+             <string>温度:</string>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QLCDNumber" name="lcdTemperature"/>
+           <widget class="QLCDNumber" name="lcdTemperature">
+            <property name="frameShape">
+             <enum>QFrame::StyledPanel</enum>
+            </property>
+           </widget>
           </item>
           <item>
            <widget class="QLabel" name="label_4">
             <property name="text">
-             <string>湿度：</string>
+             <string>湿度:</string>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QLCDNumber" name="lcdTemperature_2"/>
+           <widget class="QLCDNumber" name="lcdHumidity">
+            <property name="frameShape">
+             <enum>QFrame::StyledPanel</enum>
+            </property>
+           </widget>
           </item>
          </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item row="2" column="0">
+     <widget class="QGroupBox" name="groupBox_4">
+      <property name="title">
+       <string>控制面板</string>
+      </property>
+      <layout class="QGridLayout" name="gridLayout_5">
+       <item row="0" column="1">
+        <widget class="QPushButton" name="btnW">
+         <property name="text">
+          <string>前进(W)</string>
+         </property>
+         <property name="shortcut">
+          <string>W</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QPushButton" name="btnA">
+         <property name="text">
+          <string>左转(A)</string>
+         </property>
+         <property name="shortcut">
+          <string>A</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QPushButton" name="btnE">
+         <property name="text">
+          <string>停止(E)</string>
+         </property>
+         <property name="shortcut">
+          <string>E</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="2">
+        <widget class="QPushButton" name="btnD">
+         <property name="text">
+          <string>右转(D)</string>
+         </property>
+         <property name="shortcut">
+          <string>D</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QPushButton" name="btnS">
+         <property name="text">
+          <string>后退(S)</string>
+         </property>
+         <property name="shortcut">
+          <string>S</string>
+         </property>
         </widget>
        </item>
       </layout>
@@ -95,7 +193,7 @@
     <item row="0" column="0">
      <widget class="QGroupBox" name="groupBox">
       <property name="title">
-       <string/>
+       <string>服务器连接</string>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout">
        <property name="spacing">
@@ -192,65 +290,6 @@
       </layout>
      </widget>
     </item>
-    <item row="2" column="0">
-     <widget class="QGroupBox" name="groupBox_4">
-      <property name="title">
-       <string>控制面板</string>
-      </property>
-      <layout class="QGridLayout" name="gridLayout_5">
-       <item row="0" column="1">
-        <widget class="QPushButton" name="btnW">
-         <property name="text">
-          <string>前进(W)</string>
-         </property>
-         <property name="shortcut">
-          <string>W</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QPushButton" name="btnA">
-         <property name="text">
-          <string>左转(A)</string>
-         </property>
-         <property name="shortcut">
-          <string>A</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="1">
-        <widget class="QPushButton" name="btnE">
-         <property name="text">
-          <string>停止(E)</string>
-         </property>
-         <property name="shortcut">
-          <string>E</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="2">
-        <widget class="QPushButton" name="btnD">
-         <property name="text">
-          <string>右转(D)</string>
-         </property>
-         <property name="shortcut">
-          <string>D</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="1">
-        <widget class="QPushButton" name="btnS">
-         <property name="text">
-          <string>后退(S)</string>
-         </property>
-         <property name="shortcut">
-          <string>S</string>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-    </item>
    </layout>
   </widget>
   <widget class="QMenuBar" name="menuBar">
@@ -309,7 +348,11 @@
            </property>
            <layout class="QGridLayout" name="gridLayout_4">
             <item row="0" column="0">
-             <widget class="QPlainTextEdit" name="logText"/>
+             <widget class="QPlainTextEdit" name="logText">
+              <property name="readOnly">
+               <bool>true</bool>
+              </property>
+             </widget>
             </item>
            </layout>
           </widget>

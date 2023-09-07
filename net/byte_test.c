@@ -18,6 +18,7 @@ int dGetHostByteOrder() {
 struct TcpParam {
     unsigned char buzzer_pin;        // 1 byte
     unsigned char keyctrl_switcher;  // 1 byte
+    unsigned char servo_pin;         // 1 byte
     struct {
         unsigned char key_pressed;  // 1 byte
         int dist;                   // 4 bytes

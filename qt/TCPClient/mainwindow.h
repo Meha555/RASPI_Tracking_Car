@@ -5,6 +5,25 @@
 #include <QMainWindow>
 #include <QTcpSocket>
 
+// 24 bytes
+struct TcpParam {
+    unsigned char buzzer_pin = 0;        // 1 byte
+    unsigned char keyctrl_switcher = 1;  // 1 byte
+    unsigned char servo_pin = 1;         // 1 byte
+    struct {
+        unsigned char key_pressed = 'E';  // 1 byte
+        int dist = 0;                   // 4 bytes
+        enum Orientation { AHEAD,
+                           TURN_LEFT,
+                           TURN_RIGHT,
+        } orient = AHEAD;   // 4 bytes
+    } motor_param;  // 12 bytes
+    struct {
+        float temperature = 0;
+        float humidity = 0;
+    } dht11_param;  // 8 bytes
+};
+
 namespace Ui {
 class MainWindow;
 }
@@ -36,6 +55,9 @@ private slots:
 
 private:
     Ui::MainWindow* ui;
+    TcpParam tcpParamSend;
+    TcpParam tcpParamRecv;
+
 };
 
 #endif  // MAINWINDOW_H
