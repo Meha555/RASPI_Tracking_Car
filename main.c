@@ -21,7 +21,7 @@
 
 #define SPEED 40
 
-// #define COMMAND_LINE // 如果开启了COMMAND_LINE 则注意是否与QT控制冲突
+#define COMMAND_LINE  // 如果开启了COMMAND_LINE 则注意是否与QT控制冲突
 
 #define THREAD_NUM 6
 pthread_t tid[THREAD_NUM];
@@ -161,7 +161,6 @@ void* sonar_thread(void* args) {
             // bcd_display(0, dist / 100, dist % 100 / 10, dist % 10, 0);
             pthread_mutex_lock(&mutex_param);
             param->motor_param.dist = dist;  // 写入距离到参数地址
-            // param->dist = dist;
             if (param->motor_param.dist <= SPEED) {
                 printf("Emergency Break!\n");
                 param->motor_param.key_pressed = 'E';
@@ -302,7 +301,7 @@ void* tracking_thread(void* args) {
                 // sem_post(&sem_keyboard);
                 while (digitalRead(tracker.line_m1) == LOW || digitalRead(tracker.line_m2) == LOW)
                     if (digitalRead(tracker.line_m1) == LOW && digitalRead(tracker.line_m2) == LOW)
-                     delay(100); // 彻底不在轨道上时，需要大转弯
+                        delay(100);  // 彻底不在轨道上时，需要大转弯
                     else
                         ;  // 略微偏离轨道时，需要即时调整
             }
@@ -321,7 +320,7 @@ void* tracking_thread(void* args) {
                 // sem_post(&sem_keyboard);
                 while (digitalRead(tracker.line_m1) == LOW || digitalRead(tracker.line_m2) == LOW) {
                     if (digitalRead(tracker.line_m1) == LOW && digitalRead(tracker.line_m2) == LOW)
-                        delay(100); // 彻底不在轨道上时，需要大转弯
+                        delay(100);  // 彻底不在轨道上时，需要大转弯
                     else
                         ;  // 略微偏离轨道时，需要即时调整
                 }
@@ -469,7 +468,7 @@ int main(int argc, char* argv[]) {
         pthread_create(&tid[0], NULL, sonar_thread, tcp_param);
         pthread_create(&tid[1], NULL, keyboard_action_thread, tcp_param);
         pthread_create(&tid[2], NULL, motor_thread, tcp_param);
-        // pthread_create(&tid[3], NULL, tracking_thread, tcp_param);
+        pthread_create(&tid[3], NULL, tracking_thread, tcp_param);
         pthread_create(&tid[4], NULL, temperature_thread, tcp_param);
         pthread_create(&tid[5], NULL, tcpserver_thread, tcp_param);
     }

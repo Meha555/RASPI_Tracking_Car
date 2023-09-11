@@ -162,7 +162,7 @@ void MainWindow::onSocketReadyRead() {  // readyRead()信号槽函数
     ui->sonarSwitch->setChecked(tcpParamRecv.servo_pin);
     ui->lcdTemperature->display(tcpParamRecv.dht11_param.temperature);
     ui->lcdHumidity->display(tcpParamRecv.dht11_param.humidity);
-    ui->lcdDist->display(tcpParamRecv.motor_param.dist);qDebug()<<tcpParamRecv.motor_param.dist;
+    ui->lcdDist->display(tcpParamRecv.motor_param.dist);
 }
 
 void MainWindow::on_actConnect_triggered() {  // 连接到服务器
