@@ -19,6 +19,10 @@
 #include "temperature/dht11.h"
 #include "utils/thread_tools.h"
 
+#define SPEED 40
+
+// #define COMMAND_LINE // 如果开启了COMMAND_LINE 则注意是否与QT控制冲突
+
 #define THREAD_NUM 6
 pthread_t tid[THREAD_NUM];
 struct termios tms_old, tms_new;  // 声明终端属性结构体
@@ -54,7 +58,12 @@ static void catch_sigint(int sig) {
     tcsetattr(0, TCSANOW, &tms_old);  // 恢复旧的终端属性
     // 清理引脚
     for (int pin = 1; pin <= 40; pin++)  // 树莓派3B板载40根引脚
+    {
+        pinMode(pin, OUTPUT);
+        digitalWrite(pin, LOW);
         pinMode(pin, INPUT);
+    }
+
     signal(SIGINT, SIG_DFL);
     exit(0);  // 结束进程
 }
@@ -153,7 +162,7 @@ void* sonar_thread(void* args) {
             pthread_mutex_lock(&mutex_param);
             param->motor_param.dist = dist;  // 写入距离到参数地址
             // param->dist = dist;
-            if (param->motor_param.dist <= 30) {
+            if (param->motor_param.dist <= SPEED) {
                 printf("Emergency Break!\n");
                 param->motor_param.key_pressed = 'E';
                 sem_post(&sem_keyboard);
@@ -178,7 +187,7 @@ void* sonar_thread(void* args) {
             // bcd_display(0, dist / 100, dist % 100 / 10, dist % 10, 0);
             pthread_mutex_lock(&mutex_param);
             param->motor_param.dist = dist;  // 写入距离到参数地址
-            if (param->motor_param.dist <= 30) {
+            if (param->motor_param.dist <= SPEED) {
                 printf("Emergency Break!\n");
                 param->motor_param.key_pressed = 'E';
                 sem_post(&sem_keyboard);
@@ -202,9 +211,11 @@ void* keyboard_action_thread(void* args) {
     tcsetattr(0, TCSANOW, &tms_new);      // 设置新的终端属性
     unsigned char ch = 'E';
     while (1) {
+#ifdef COMMAND_LINE
         while (!param->keyctrl_switcher) {
             pthread_yield(NULL);  // 主动放弃处理机
         }
+#endif
         // 这段需要即时判断距离的代码不能和getchar()放在同一线程中，否则getchar()阻塞后将无法即时判断距离
         // if (param->dist <= 5) {
         //     pthread_mutex_lock(&mutex_param);
@@ -229,15 +240,17 @@ void* motor_thread(void* args) {
 }
 
 void* tracking_thread(void* args) {
-    printf("In actuator_thread.\n");
+    printf("In tracking_thread.\n");
     struct TcpParam* param = (struct TcpParam*)args;
     initial_tcrt5000();
     unsigned char ch = 'E';
     while (1) {
+#ifdef COMMAND_LINE
         while (param->keyctrl_switcher) {
             pthread_yield(NULL);  // 主动放弃处理机
         }
-        //    printf("电位：%d %d %d %d\n", digitalRead(tracker.line_l), digitalRead(tracker.line_m1), digitalRead(tracker.line_m2), digitalRead(tracker.line_r));
+#endif
+        // printf("电位：%d %d %d %d\n", digitalRead(tracker.line_l), digitalRead(tracker.line_m1), digitalRead(tracker.line_m2), digitalRead(tracker.line_r));
         // while ((digitalRead(tracker.line_l) == HIGH & digitalRead(tracker.line_m1) == LOW & digitalRead(tracker.line_m2) == LOW & digitalRead(tracker.line_r) == LOW)) {
         //     printf("左转\n");
         //     softPwmWrite(motor[LEFT].m2, 40);
@@ -260,103 +273,108 @@ void* tracking_thread(void* args) {
         // }
         // while (digitalRead(tracker.line_m1) == HIGH | digitalRead(tracker.line_m2) == HIGH) {
         //     // printf("直行\n");
-        //     softPwmWrite(motor[LEFT].m1, 30);
-        //     softPwmWrite(motor[RIGHT].m1, 30);
+        //     softPwmWrite(motor[LEFT].m1, SPEED);
+        //     softPwmWrite(motor[RIGHT].m1, SPEED);
         // }
         // if (digitalRead(tracker.line_l) == LOW & digitalRead(tracker.line_m1) == LOW & digitalRead(tracker.line_m2) == LOW & digitalRead(tracker.line_r) == LOW) {
         //     // printf("掉头\n");
-        //     softPwmWrite(motor[LEFT].m1, 30);
-        //     softPwmWrite(motor[RIGHT].m2, 30);
-        //     delay(30);
+        //     softPwmWrite(motor[LEFT].m1, SPEED);
+        //     softPwmWrite(motor[RIGHT].m2, SPEED);
+        //     delay(SPEED);
         //     softPwmWrite(motor[LEFT].m1, 0);
         //     softPwmWrite(motor[RIGHT].m2, 0);
         // }
 
-        // 中间都低电平，说明没黑带，可以转弯
+        // 中间都低电平，说明彻底没黑带，可以转弯
         if (digitalRead(tracker.line_m1) == LOW && digitalRead(tracker.line_m2) == LOW) {
-            // 左侧高电平，右侧低电平，说明左侧碰到黑带，应该左转
+            // 左侧高电平，右侧低电平，说明左侧有黑带，应该左转
             if (digitalRead(tracker.line_l) == HIGH && digitalRead(tracker.line_r) == LOW) {
                 printf("Turn Left permitted.\n");
                 g_gear = LEFT;
-
-                softPwmWrite(motor[RIGHT].m1, 30);
+                softPwmWrite(motor[RIGHT].m1, SPEED);
                 softPwmWrite(motor[RIGHT].m2, 0);
                 softPwmWrite(motor[LEFT].m1, 0);
-                softPwmWrite(motor[LEFT].m2, 30);
+                softPwmWrite(motor[LEFT].m2, SPEED);
                 // ch = 'A';
                 // pthread_mutex_lock(&mutex_param);
-                // param->key_pressed = ch;
+                // param->motor_param.key_pressed = ch;
                 // pthread_mutex_unlock(&mutex_param);
                 // sem_post(&sem_keyboard);
-                // delay(80);
                 while (digitalRead(tracker.line_m1) == LOW && digitalRead(tracker.line_m2) == LOW)
-                    ;
+                    delay(100);
             }
-            // 右侧高电平，左侧低电平，说明右侧碰到黑带，应该右转
+            // 右侧高电平，左侧低电平，说明右侧有黑带，应该右转
             else if (digitalRead(tracker.line_r) == HIGH && digitalRead(tracker.line_l) == LOW) {
                 printf("Turn Right permitted.\n");
                 g_gear = RIGHT;
                 softPwmWrite(motor[RIGHT].m1, 0);
-                softPwmWrite(motor[RIGHT].m2, 30);
-                softPwmWrite(motor[LEFT].m1, 30);
+                softPwmWrite(motor[RIGHT].m2, SPEED);
+                softPwmWrite(motor[LEFT].m1, SPEED);
                 softPwmWrite(motor[LEFT].m2, 0);
                 // ch = 'D';
                 // pthread_mutex_lock(&mutex_param);
-                // param->key_pressed = ch;
+                // param->motor_param.key_pressed = ch;
                 // pthread_mutex_unlock(&mutex_param);
                 // sem_post(&sem_keyboard);
-                // delay(80);
                 while (digitalRead(tracker.line_m1) == LOW && digitalRead(tracker.line_m2) == LOW)
-                    ;
+                    delay(100);
             }
             // 全部都为低电平，没有正下方的轨道了
             else if (digitalRead(tracker.line_m1) == LOW && digitalRead(tracker.line_m2) == LOW) {
                 printf("No trail!\n");
-                static try_cnt = 1;
-                if (try_cnt >= 5) {
+                static int try_cnt = 1;
+                if (try_cnt >= 0x3f3f3f3f) {
                     printf("Try failed.\n");
                     ch = 'E';
+                    g_gear = STOP;
                     buzzer_single_beep(1);
                     pthread_mutex_lock(&mutex_param);
                     param->motor_param.key_pressed = ch;
                     pthread_mutex_unlock(&mutex_param);
                     sem_post(&sem_keyboard);
                 } else {
-                    printf("On the %d times try\n", try_cnt);
-                    CAR_HEAD = 0;  // 车头为后
-
+                    printf("The %d times try\n", try_cnt);
                     if (g_gear == LEFT) {
+                        CAR_HEAD = 0;  // 车头为后
                         printf("右后转弯\n");
-                        softPwmWrite(motor[RIGHT].m1, 30);
-                        softPwmWrite(motor[RIGHT].m2, 0);
-                        softPwmWrite(motor[LEFT].m1, 0);
-                        softPwmWrite(motor[LEFT].m2, 30);
-                        // ch = 'A';
-                        // pthread_mutex_lock(&mutex_param);
-                        // param->key_pressed = ch;
-                        // pthread_mutex_unlock(&mutex_param);
-                        // sem_post(&sem_keyboard);
-                        delay(280);
-                    } else if (g_gear == RIGHT) {
-                        printf("左后转弯\n");
-                        softPwmWrite(motor[RIGHT].m2, 30);
-                        softPwmWrite(motor[RIGHT].m1, 0);
-                        softPwmWrite(motor[LEFT].m2, 0);
-                        softPwmWrite(motor[LEFT].m1, 30);
-                        // ch = 'D';
-                        // pthread_mutex_lock(&mutex_param);
-                        // param->key_pressed = ch;
-                        // pthread_mutex_unlock(&mutex_param);
-                        // sem_post(&sem_keyboard);
-                        delay(280);
-                    } else {
-                        printf("后退\n");
-                        ch = 'S';
+                        // softPwmWrite(motor[RIGHT].m1, SPEED);
+                        // softPwmWrite(motor[RIGHT].m2, 0);
+                        // softPwmWrite(motor[LEFT].m1, 0);
+                        // softPwmWrite(motor[LEFT].m2, SPEED);
+                        ch = 'A';
                         pthread_mutex_lock(&mutex_param);
                         param->motor_param.key_pressed = ch;
                         pthread_mutex_unlock(&mutex_param);
                         sem_post(&sem_keyboard);
-                        delay(500);
+                        delay(650);  // 280
+                    } else if (g_gear == RIGHT) {
+                        CAR_HEAD = 0;  // 车头为后
+                        printf("左后转弯\n");
+                        // softPwmWrite(motor[RIGHT].m2, SPEED);
+                        // softPwmWrite(motor[RIGHT].m1, 0);
+                        // softPwmWrite(motor[LEFT].m2, 0);
+                        // softPwmWrite(motor[LEFT].m1, SPEED);
+                        ch = 'D';
+                        pthread_mutex_lock(&mutex_param);
+                        param->motor_param.key_pressed = ch;
+                        pthread_mutex_unlock(&mutex_param);
+                        sem_post(&sem_keyboard);
+                        delay(650);  // 280
+                    } else {
+                        printf("后退\n");
+                        // CAR_HEAD = 1;
+                        // ch = 'S';
+                        // pthread_mutex_lock(&mutex_param);
+                        // param->motor_param.key_pressed = ch;
+                        // pthread_mutex_unlock(&mutex_param);
+                        // sem_post(&sem_keyboard);
+                        // delay(500);
+                        g_gear = BACKWARD;
+                        softPwmWrite(motor[LEFT].m2, SPEED - 20);
+                        softPwmWrite(motor[RIGHT].m2, SPEED - 20);
+                        softPwmWrite(motor[LEFT].m1, 0);
+                        softPwmWrite(motor[RIGHT].m1, 0);
+                        delay(450);
                         g_gear = FORWARD;
                     }
                     try_cnt++;
@@ -371,14 +389,12 @@ void* tracking_thread(void* args) {
                 printf("Forward permitted.\n");
                 g_gear = FORWARD;
                 // ch = 'W';
-                softPwmWrite(motor[LEFT].m1, 30);
-                softPwmWrite(motor[RIGHT].m1, 30);
+                softPwmWrite(motor[LEFT].m1, SPEED - 10);
+                softPwmWrite(motor[RIGHT].m1, SPEED - 10);
                 softPwmWrite(motor[LEFT].m2, 0);
                 softPwmWrite(motor[RIGHT].m2, 0);
-                // delay(50);
             }
         }
-        //     delay(100);
     }
 }
 
@@ -386,6 +402,7 @@ int main(int argc, char* argv[]) {
     printf("--------------------------------------------------------------------\n");
     printf("Usage: ./main module_name(Leave blank to start all)\n");
     printf("modules: sonar, keyboard, motor, tracking, temperature, button, tcp\n");
+    printf("Tips: motor must be activate before tracking or keyboard.\n");
     printf("--------------------------------------------------------------------\n");
     printf("Initializing...\n");
     if (wiringPiSetup() < 0) {
@@ -445,7 +462,7 @@ int main(int argc, char* argv[]) {
         pthread_create(&tid[0], NULL, sonar_thread, tcp_param);
         pthread_create(&tid[1], NULL, keyboard_action_thread, tcp_param);
         pthread_create(&tid[2], NULL, motor_thread, tcp_param);
-        pthread_create(&tid[3], NULL, tracking_thread, tcp_param);
+        // pthread_create(&tid[3], NULL, tracking_thread, tcp_param);
         pthread_create(&tid[4], NULL, temperature_thread, tcp_param);
         pthread_create(&tid[5], NULL, tcpserver_thread, tcp_param);
     }

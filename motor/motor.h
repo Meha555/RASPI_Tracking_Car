@@ -5,7 +5,7 @@
 #include <semaphore.h>
 #include "../net/tcp_socket/raspi_tcp.h"
 
-#define PRINT_GEAR                          \
+#define PRINT_GEAR(g_gear)                  \
     do {                                    \
         if (g_gear == 0)                    \
             printf("****GEAR: LEFT\n");     \
