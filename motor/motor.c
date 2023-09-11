@@ -113,12 +113,12 @@ void drive(struct TcpParam* param) {
     unsigned char ch = 'E';
     while (1) {
         sem_wait(&sem_keyboard);  // 等待键盘动作
-        pthread_mutex_lock(&mutex_param);
+        pthread_rwlock_rdlock(&rwlock_param);
         ch = param->motor_param.key_pressed;
         // printf("--Get KEY: %c--\n", ch);
         // printf("--Get DIST: %d--\n", param->dist);
         // printf("--Get ORIENT: %d--\n", param->orient);
-        pthread_mutex_unlock(&mutex_param);
+        pthread_rwlock_unlock(&rwlock_param);
         switch (ch) {
             case 'W': {  // 前进
                 printf("Forward~\n");

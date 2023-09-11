@@ -28,9 +28,9 @@ pthread_t tid[THREAD_NUM];
 struct termios tms_old, tms_new;  // 声明终端属性结构体
 
 // 全局变量的定义
-sem_t sem_keyboard;           // 键盘资源信号量
-sem_t sem_sonar;              // 声呐资源信号量
-pthread_mutex_t mutex_param;  // 电机参数锁
+sem_t sem_keyboard;             // 键盘资源信号量
+sem_t sem_sonar;                // 声呐资源信号量
+pthread_rwlock_t rwlock_param;  // TcpParam参数锁（使用读写锁提高多读少写场景的并发度）
 // pthread_mutex_t mutex_auto_keyctrl;   // 键盘控制锁
 // pthread_mutex_t mutex_auto_tracking;  // 循迹控制锁
 
@@ -57,13 +57,11 @@ static void catch_sigint(int sig) {
     // TODO - 发送终止服务器2个线程的信号
     tcsetattr(0, TCSANOW, &tms_old);  // 恢复旧的终端属性
     // 清理引脚
-    for (int pin = 1; pin <= 40; pin++)  // 树莓派3B板载40根引脚
-    {
+    for (int pin = 1; pin <= 40; pin++) {  // 树莓派3B板载40根引脚
         pinMode(pin, OUTPUT);
         digitalWrite(pin, LOW);
         pinMode(pin, INPUT);
     }
-
     signal(SIGINT, SIG_DFL);
     exit(0);  // 结束进程
 }
@@ -83,7 +81,9 @@ void* button_thread(void* args) {
     // button_action(catch_sigint);
     while (1) {
         // 调整最新的蜂鸣器电平
+        pthread_rwlock_rdlock(&rwlock_param);
         buzzer_single_beep((int)param->buzzer_pin);
+        pthread_rwlock_unlock(&rwlock_param);
         // 调整最新的控制系统设置
         // if (param->keyctrl_switcher) {
         //     // if (pthread_kill(tid[3], 0) == 0) {
@@ -124,10 +124,10 @@ void* temperature_thread(void* args) {
             case 1:
                 // printf("Humidity = %d.%d, Temperature = %d.%d\n", data[0], data[1], data[2], data[3]);
                 bcd_display(data[0], data[1], data[2], data[3], 1);
-                pthread_mutex_lock(&mutex_param);
+                pthread_rwlock_wrlock(&rwlock_param);
                 param->dht11_param.humidity = data[0] + data[1] / 10;
                 param->dht11_param.temperature = data[2] + data[3] / 10;
-                pthread_mutex_unlock(&mutex_param);
+                pthread_rwlock_unlock(&rwlock_param);
                 break;
             case 2:
                 printf("Time Out!\n");
@@ -149,17 +149,19 @@ void* sonar_thread(void* args) {
     while (1) {
         // 左转
         for (int i = -90; i < 90; i += 45) {
+            pthread_rwlock_rdlock(&rwlock_param);
             if (param->servo_pin) {
                 printf("Actuator spin left %d degree.\n", i);
                 softPwmWrite(SERVO_PIN, get_duty_cycle(i));
             }
+            pthread_rwlock_unlock(&rwlock_param);
             int dist = get_distance();
             if (dist >= 400)
                 printf("Lose precision!\n");
             else
                 printf("Dectecting dist: %d CM\n", dist);
             // bcd_display(0, dist / 100, dist % 100 / 10, dist % 10, 0);
-            pthread_mutex_lock(&mutex_param);
+            pthread_rwlock_wrlock(&rwlock_param);
             param->motor_param.dist = dist;  // 写入距离到参数地址
             if (param->motor_param.dist <= SPEED) {
                 printf("Emergency Break!\n");
@@ -169,22 +171,24 @@ void* sonar_thread(void* args) {
                 buzzer_single_beep(1);
             } else
                 buzzer_single_beep(0);
-            pthread_mutex_unlock(&mutex_param);
+            pthread_rwlock_unlock(&rwlock_param);
             delay(500);
         }
         // 右转
         for (int i = 90; i > -90; i -= 45) {
+            pthread_rwlock_rdlock(&rwlock_param);
             if (param->servo_pin) {
                 printf("Actuator spin right %d degree.\n", i);
                 softPwmWrite(SERVO_PIN, get_duty_cycle(i));
             }
+            pthread_rwlock_unlock(&rwlock_param);
             int dist = get_distance();
             if (dist >= 400)
                 printf("Lose precision!\n");
             else
                 printf("Dectecting dist: %d CM\n", dist);
             // bcd_display(0, dist / 100, dist % 100 / 10, dist % 10, 0);
-            pthread_mutex_lock(&mutex_param);
+            pthread_rwlock_wrlock(&rwlock_param);
             param->motor_param.dist = dist;  // 写入距离到参数地址
             if (param->motor_param.dist <= SPEED) {
                 printf("Emergency Break!\n");
@@ -194,7 +198,7 @@ void* sonar_thread(void* args) {
                 buzzer_single_beep(1);
             } else
                 buzzer_single_beep(0);
-            pthread_mutex_unlock(&mutex_param);
+            pthread_rwlock_unlock(&rwlock_param);
             delay(500);
         }
     }
@@ -217,15 +221,15 @@ void* keyboard_action_thread(void* args) {
 #endif
         // 这段需要即时判断距离的代码不能和getchar()放在同一线程中，否则getchar()阻塞后将无法即时判断距离
         // if (param->dist <= 5) {
-        //     pthread_mutex_lock(&mutex_param);
+        //     pthread_mutex_lock(&rwlock_param);
         //     printf("Emergency Break!\n");
         //     param->key_pressed = 'E';
-        //     pthread_mutex_unlock(&mutex_param);
+        //     pthread_mutex_unlock(&rwlock_param);
         // } else {
         ch = getchar();  // getchar()写锁外面，避免锁内阻塞
-        pthread_mutex_lock(&mutex_param);
+        pthread_rwlock_wrlock(&rwlock_param);
         param->motor_param.key_pressed = ch;
-        pthread_mutex_unlock(&mutex_param);
+        pthread_rwlock_unlock(&rwlock_param);
         // }
         sem_post(&sem_keyboard);
     }
@@ -246,43 +250,14 @@ void* tracking_thread(void* args) {
     while (1) {
 #ifdef COMMAND_LINE
         while (param->keyctrl_switcher) {
+            inital_hr024();       // 记得复位超声波
             pthread_yield(NULL);  // 主动放弃处理机
         }
 #endif
+        // 关掉超声波
+        pinMode(TRIG_PIN, INPUT);
+        digitalWrite(TRIG_PIN, LOW);
         // printf("电位：%d %d %d %d\n", digitalRead(tracker.line_l), digitalRead(tracker.line_m1), digitalRead(tracker.line_m2), digitalRead(tracker.line_r));
-        // while ((digitalRead(tracker.line_l) == HIGH & digitalRead(tracker.line_m1) == LOW & digitalRead(tracker.line_m2) == LOW & digitalRead(tracker.line_r) == LOW)) {
-        //     printf("左转\n");
-        //     softPwmWrite(motor[LEFT].m2, 40);
-        //     softPwmWrite(motor[RIGHT].m1, 40);
-        //     while (!(digitalRead(tracker.line_m1) == HIGH & digitalRead(tracker.line_m2) == HIGH))
-        //         ;
-        //     // delay(25);
-        //     softPwmWrite(motor[LEFT].m2, 0);
-        //     softPwmWrite(motor[RIGHT].m1, 0);
-        // }
-        // while (digitalRead(tracker.line_l) == LOW & digitalRead(tracker.line_m1) == LOW & digitalRead(tracker.line_m2) == LOW & digitalRead(tracker.line_r) == HIGH) {
-        //     printf("右转\n");
-        //     softPwmWrite(motor[RIGHT].m2, 40);
-        //     softPwmWrite(motor[LEFT].m1, 40);
-        //     while (!(digitalRead(tracker.line_m1) == HIGH & digitalRead(tracker.line_m2) == HIGH))
-        //         ;
-        //     // delay(25);
-        //     softPwmWrite(motor[RIGHT].m2, 0);
-        //     softPwmWrite(motor[LEFT].m1, 0);
-        // }
-        // while (digitalRead(tracker.line_m1) == HIGH | digitalRead(tracker.line_m2) == HIGH) {
-        //     // printf("直行\n");
-        //     softPwmWrite(motor[LEFT].m1, SPEED);
-        //     softPwmWrite(motor[RIGHT].m1, SPEED);
-        // }
-        // if (digitalRead(tracker.line_l) == LOW & digitalRead(tracker.line_m1) == LOW & digitalRead(tracker.line_m2) == LOW & digitalRead(tracker.line_r) == LOW) {
-        //     // printf("掉头\n");
-        //     softPwmWrite(motor[LEFT].m1, SPEED);
-        //     softPwmWrite(motor[RIGHT].m2, SPEED);
-        //     delay(SPEED);
-        //     softPwmWrite(motor[LEFT].m1, 0);
-        //     softPwmWrite(motor[RIGHT].m2, 0);
-        // }
 
         // 中间都低电平，说明彻底没黑带，可以转弯
         if (digitalRead(tracker.line_m1) == LOW || digitalRead(tracker.line_m2) == LOW) {
@@ -295,9 +270,9 @@ void* tracking_thread(void* args) {
                 softPwmWrite(motor[LEFT].m1, 0);
                 softPwmWrite(motor[LEFT].m2, SPEED);
                 // ch = 'A';
-                // pthread_mutex_lock(&mutex_param);
+                // pthread_mutex_lock(&rwlock_param);
                 // param->motor_param.key_pressed = ch;
-                // pthread_mutex_unlock(&mutex_param);
+                // pthread_mutex_unlock(&rwlock_param);
                 // sem_post(&sem_keyboard);
                 while (digitalRead(tracker.line_m1) == LOW || digitalRead(tracker.line_m2) == LOW)
                     if (digitalRead(tracker.line_m1) == LOW && digitalRead(tracker.line_m2) == LOW)
@@ -314,9 +289,9 @@ void* tracking_thread(void* args) {
                 softPwmWrite(motor[LEFT].m1, SPEED);
                 softPwmWrite(motor[LEFT].m2, 0);
                 // ch = 'D';
-                // pthread_mutex_lock(&mutex_param);
+                // pthread_mutex_lock(&rwlock_param);
                 // param->motor_param.key_pressed = ch;
-                // pthread_mutex_unlock(&mutex_param);
+                // pthread_mutex_unlock(&rwlock_param);
                 // sem_post(&sem_keyboard);
                 while (digitalRead(tracker.line_m1) == LOW || digitalRead(tracker.line_m2) == LOW) {
                     if (digitalRead(tracker.line_m1) == LOW && digitalRead(tracker.line_m2) == LOW)
@@ -334,9 +309,9 @@ void* tracking_thread(void* args) {
                     ch = 'E';
                     g_gear = STOP;
                     buzzer_single_beep(1);
-                    pthread_mutex_lock(&mutex_param);
+                    pthread_rwlock_wrlock(&rwlock_param);
                     param->motor_param.key_pressed = ch;
-                    pthread_mutex_unlock(&mutex_param);
+                    pthread_rwlock_unlock(&rwlock_param);
                     sem_post(&sem_keyboard);
                 } else {
                     printf("The %d times try\n", try_cnt);
@@ -348,9 +323,9 @@ void* tracking_thread(void* args) {
                         // softPwmWrite(motor[LEFT].m1, 0);
                         // softPwmWrite(motor[LEFT].m2, SPEED);
                         ch = 'A';
-                        pthread_mutex_lock(&mutex_param);
+                        pthread_rwlock_wrlock(&rwlock_param);
                         param->motor_param.key_pressed = ch;
-                        pthread_mutex_unlock(&mutex_param);
+                        pthread_rwlock_unlock(&rwlock_param);
                         sem_post(&sem_keyboard);
                         delay(650);  // 280
                     } else if (g_gear == RIGHT) {
@@ -361,18 +336,18 @@ void* tracking_thread(void* args) {
                         // softPwmWrite(motor[LEFT].m2, 0);
                         // softPwmWrite(motor[LEFT].m1, SPEED);
                         ch = 'D';
-                        pthread_mutex_lock(&mutex_param);
+                        pthread_rwlock_wrlock(&rwlock_param);
                         param->motor_param.key_pressed = ch;
-                        pthread_mutex_unlock(&mutex_param);
+                        pthread_rwlock_unlock(&rwlock_param);
                         sem_post(&sem_keyboard);
                         delay(650);  // 280
                     } else {
                         printf("后退\n");
                         // CAR_HEAD = 1;
                         // ch = 'S';
-                        // pthread_mutex_lock(&mutex_param);
+                        // pthread_mutex_lock(&rwlock_param);
                         // param->motor_param.key_pressed = ch;
-                        // pthread_mutex_unlock(&mutex_param);
+                        // pthread_mutex_unlock(&rwlock_param);
                         // sem_post(&sem_keyboard);
                         // delay(500);
                         g_gear = BACKWARD;
@@ -423,7 +398,7 @@ int main(int argc, char* argv[]) {
     // 初始化互斥同步
     sem_init(&sem_sonar, 0, 0);
     sem_init(&sem_keyboard, 0, 0);
-    pthread_mutex_init(&mutex_param, NULL);
+    pthread_rwlock_init(&rwlock_param, NULL);
     // pthread_mutex_init(&mutex_auto_keyctrl, NULL);
     // pthread_mutex_init(&mutex_auto_tracking, NULL);
 
@@ -483,7 +458,7 @@ int main(int argc, char* argv[]) {
     // 销毁互斥同步
     sem_destroy(&sem_sonar);
     sem_destroy(&sem_keyboard);
-    pthread_mutex_destroy(&mutex_param);
+    pthread_rwlock_destroy(&rwlock_param);
     // pthread_mutex_destroy(&mutex_auto_keyctrl);
     // pthread_mutex_destroy(&mutex_auto_tracking);
     // 清理堆上变量

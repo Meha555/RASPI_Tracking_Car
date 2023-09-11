@@ -34,7 +34,7 @@ extern struct Motor {
 
 extern sem_t sem_keyboard;           // 键盘资源信号量
 extern sem_t sem_sonar;              // 声呐资源信号量
-extern pthread_mutex_t mutex_param;  // 电机参数锁
+extern pthread_rwlock_t rwlock_param;  // 电机参数锁
 
 extern void inital_drive();
 extern void drive(struct TcpParam* param);

@@ -44,7 +44,7 @@ void* recv_tcp_segment(struct TcpParam* args) {
         }
         struct TcpParam* recv_param = (struct TcpParam*)buf_recv;
         // PRINT_TCP_PARAM(recv_param);
-        pthread_mutex_lock(&mutex_param);
+        pthread_rwlock_wrlock(&rwlock_param);
         param->buzzer_pin = recv_param->buzzer_pin;
         param->keyctrl_switcher = recv_param->keyctrl_switcher;
         param->servo_pin = recv_param->servo_pin;
@@ -53,7 +53,7 @@ void* recv_tcp_segment(struct TcpParam* args) {
         // param->motor_param.orient = recv_param->motor_param.orient;
         // param->dht11_param.temperature = recv_param->dht11_param.temperature;
         // param->dht11_param.humidity = recv_param->dht11_param.humidity;
-        pthread_mutex_unlock(&mutex_param);
+        pthread_rwlock_unlock(&rwlock_param);
         sem_post(&sem_keyboard);
     }
 }
