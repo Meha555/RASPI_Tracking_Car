@@ -286,9 +286,9 @@ void* tracking_thread(void* args) {
         // }
 
         // 中间都低电平，说明彻底没黑带，可以转弯
-        if (digitalRead(tracker.line_m1) == LOW && digitalRead(tracker.line_m2) == LOW) {
+        if (digitalRead(tracker.line_m1) == LOW || digitalRead(tracker.line_m2) == LOW) {
             // 左侧高电平，右侧低电平，说明左侧有黑带，应该左转
-            if (digitalRead(tracker.line_l) == HIGH && digitalRead(tracker.line_r) == LOW) {
+            if ((digitalRead(tracker.line_l) == HIGH && digitalRead(tracker.line_r) == LOW) || (digitalRead(tracker.line_m1) == HIGH && digitalRead(tracker.line_m2) == LOW)) {
                 printf("Turn Left permitted.\n");
                 g_gear = LEFT;
                 softPwmWrite(motor[RIGHT].m1, SPEED);
@@ -300,11 +300,14 @@ void* tracking_thread(void* args) {
                 // param->motor_param.key_pressed = ch;
                 // pthread_mutex_unlock(&mutex_param);
                 // sem_post(&sem_keyboard);
-                while (digitalRead(tracker.line_m1) == LOW && digitalRead(tracker.line_m2) == LOW)
-                    delay(100);
+                while (digitalRead(tracker.line_m1) == LOW || digitalRead(tracker.line_m2) == LOW)
+                    if (digitalRead(tracker.line_m1) == LOW && digitalRead(tracker.line_m2) == LOW)
+                        delay(100);
+                    else
+                        ;
             }
             // 右侧高电平，左侧低电平，说明右侧有黑带，应该右转
-            else if (digitalRead(tracker.line_r) == HIGH && digitalRead(tracker.line_l) == LOW) {
+            else if (digitalRead(tracker.line_r) == HIGH && digitalRead(tracker.line_l) == LOW || (digitalRead(tracker.line_m1) == LOW && digitalRead(tracker.line_m2) == HIGH)) {
                 printf("Turn Right permitted.\n");
                 g_gear = RIGHT;
                 softPwmWrite(motor[RIGHT].m1, 0);
@@ -316,8 +319,12 @@ void* tracking_thread(void* args) {
                 // param->motor_param.key_pressed = ch;
                 // pthread_mutex_unlock(&mutex_param);
                 // sem_post(&sem_keyboard);
-                while (digitalRead(tracker.line_m1) == LOW && digitalRead(tracker.line_m2) == LOW)
-                    delay(100);
+                while (digitalRead(tracker.line_m1) == LOW || digitalRead(tracker.line_m2) == LOW) {
+                    if (digitalRead(tracker.line_m1) == LOW && digitalRead(tracker.line_m2) == LOW)
+                        delay(100);
+                    else
+                        ;
+                }
             }
             // 全部都为低电平，没有正下方的轨道了
             else if (digitalRead(tracker.line_m1) == LOW && digitalRead(tracker.line_m2) == LOW) {
