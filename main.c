@@ -302,9 +302,9 @@ void* tracking_thread(void* args) {
                 // sem_post(&sem_keyboard);
                 while (digitalRead(tracker.line_m1) == LOW || digitalRead(tracker.line_m2) == LOW)
                     if (digitalRead(tracker.line_m1) == LOW && digitalRead(tracker.line_m2) == LOW)
-                        delay(100);
+                     delay(100); // 彻底不在轨道上时，需要大转弯
                     else
-                        ;
+                        ;  // 略微偏离轨道时，需要即时调整
             }
             // 右侧高电平，左侧低电平，说明右侧有黑带，应该右转
             else if (digitalRead(tracker.line_r) == HIGH && digitalRead(tracker.line_l) == LOW || (digitalRead(tracker.line_m1) == LOW && digitalRead(tracker.line_m2) == HIGH)) {
@@ -321,9 +321,9 @@ void* tracking_thread(void* args) {
                 // sem_post(&sem_keyboard);
                 while (digitalRead(tracker.line_m1) == LOW || digitalRead(tracker.line_m2) == LOW) {
                     if (digitalRead(tracker.line_m1) == LOW && digitalRead(tracker.line_m2) == LOW)
-                        delay(100);
+                        delay(100); // 彻底不在轨道上时，需要大转弯
                     else
-                        ;
+                        ;  // 略微偏离轨道时，需要即时调整
                 }
             }
             // 全部都为低电平，没有正下方的轨道了
